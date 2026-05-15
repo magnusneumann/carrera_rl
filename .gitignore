@@ -1,0 +1,25 @@
+# Python Cache
+__pycache__/
+*.py[cod]
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Die Metadaten, die pip install -e . erzeugt hat
+carrera_rl.egg-info/
+*.egg-info/
+
+# RL-spezifische Ordner (werden schnell gigantisch groß)
+logs/
+trained_models/
+
+# Falls du große Videos oder Bilder generierst
+data/*.mp4
+data/*.avi
+
+#das Environment nicht hochladen
+.rl_venv/
+rl_venv/
+env/
+__pycache__/
+*.egg-info/
