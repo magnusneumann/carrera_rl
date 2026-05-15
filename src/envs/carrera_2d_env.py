@@ -17,7 +17,7 @@ class Carrera2DEnv(gym.Env):
         self.L = 0.058  # 58 mm Radstand
         self.mass = 0.080  # 80 g Masse
         self.max_steer_angle = np.radians(30) 
-        self.max_speed = 3.0  # m/s
+        self.max_speed = 1.5  # m/s
         
         # --- Skalierung ---
         self.pixels_per_meter = 1064.0  
@@ -50,7 +50,7 @@ class Carrera2DEnv(gym.Env):
         x, y, v, theta, omega = self.state
 
         # 1. Antrieb und Bremse
-        force = gas * 1.5 - brake * 2.0 
+        force = gas * 1.1 - brake * 1.0
         dv_dt = (force - (0.5 * v)) / self.mass 
         v_new = v + dv_dt * self.dt
         v_new = np.clip(v_new, -self.max_speed, self.max_speed)
@@ -95,14 +95,38 @@ class Carrera2DEnv(gym.Env):
     def _init_render(self):
         if self.screen is None:
             pygame.init()
-            self.track_img = pygame.image.load(self.track_image_path)
-            self.screen_width, self.screen_height = self.track_img.get_size()
+            
+            # 1. Originalbild laden
+            original_track = pygame.image.load(self.track_image_path)
+            orig_w, orig_h = original_track.get_size()
+            
+            # 2. Fenstergröße dynamisch begrenzen (z.B. max 1200 Pixel breit)
+            max_window_width = 1200
+            if orig_w > max_window_width:
+                self.render_scale = max_window_width / orig_w
+            else:
+                self.render_scale = 1.0
+                
+            self.screen_width = int(orig_w * self.render_scale)
+            self.screen_height = int(orig_h * self.render_scale)
+            
+            # Fenster mit der neuen, kleineren Größe erstellen
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
             pygame.display.set_caption("Carrera RL - WASD Prototyp")
             
-            # Autobild laden und anhand der Skalierung anpassen (104x41 Pixel)
+            # 3. Streckenbild verkleinern
+            self.track_img = pygame.transform.smoothscale(
+                original_track, (self.screen_width, self.screen_height)
+            )
+            
+            # 4. Autobild laden und passend mitskalieren
+            # Originalgröße war 104x41 Pixel. Jetzt mal dem Skalierungsfaktor.
             car_surface = pygame.image.load(self.car_image_path).convert_alpha()
-            self.car_img = pygame.transform.scale(car_surface, (104, 41))
+            scaled_car_w = int(104 * self.render_scale)
+            scaled_car_h = int(41 * self.render_scale)
+            self.car_img = pygame.transform.smoothscale(
+                car_surface, (scaled_car_w, scaled_car_h)
+            )
 
     def render(self):
         if self.screen is None:
@@ -113,23 +137,17 @@ class Carrera2DEnv(gym.Env):
         
         x_m, y_m, _, theta, _ = self.state
         
-        # Meter in Pixel umrechnen
-        pixel_x = int(x_m * self.pixels_per_meter)
-        pixel_y = int(y_m * self.pixels_per_meter)
+        # Meter in Pixel umrechnen UND an das verkleinerte Fenster anpassen!
+        # Hier ist self.render_scale der Trick, damit die Physik unangetastet bleibt.
+        pixel_x = int(x_m * self.pixels_per_meter * self.render_scale)
+        pixel_y = int(y_m * self.pixels_per_meter * self.render_scale)
         
-        # Auto rotieren (Pygame rotiert gegen den Uhrzeigersinn, also Winkel negativ machen)
-        # Pygame 0 Grad ist rechts, was zu unserer Mathematik passt.
+        # Auto rotieren (Pygame 0 Grad ist rechts)
         angle_deg = np.degrees(-theta)
         rotated_car = pygame.transform.rotate(self.car_img, angle_deg)
         
-        # Rotationszentrum korrigieren, damit es nicht eiert
+        # Rotationszentrum korrigieren
         rect = rotated_car.get_rect(center=(pixel_x, pixel_y))
         self.screen.blit(rotated_car, rect.topleft)
         
         pygame.display.flip()
-
-    def close(self):
-        if self.screen is not None:
-            pygame.quit()
-            self.screen = None
-            self.isopen = False
