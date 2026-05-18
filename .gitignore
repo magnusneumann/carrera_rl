@@ -23,3 +23,6 @@ rl_venv/
 env/
 __pycache__/
 *.egg-info/
+
+#die Logs nicht hochladen
+tensorboard_logs/

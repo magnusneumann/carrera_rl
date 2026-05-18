@@ -17,7 +17,7 @@ class RewardCalculator:
         # 1. Todesbedingung (Crash)
         if is_crashing:
             reward = self.crash_penalty
-            terminated = False #True #grade auskommentiert, mal probieren ob man ohne abbrechen lernen kann
+            terminated = True #True #grade auskommentiert, mal probieren ob man ohne abbrechen lernen kann
             return reward, terminated # Sofort abbrechen
 
         # 2. Richtungs- und Geschwindigkeits-Reward

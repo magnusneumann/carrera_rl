@@ -149,8 +149,8 @@ class Carrera2DEnv(gym.Env):
         }
         
         # 1. Alle Strafen/Boni für DIESEN Frame sammeln
-        if is_crashing:
-            reward -= 6.0 
+        #if is_crashing:
+        #    reward -= 50.0 
         
         if self.episode_reward <= -3000:
             terminated = True
