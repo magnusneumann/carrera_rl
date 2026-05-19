@@ -4,7 +4,7 @@ import numpy as np
 import pygame
 import os
 import math
-
+from collections import deque
 from shapely import LineString, Polygon
 from src.utils.reward_func import RewardCalculator
 from src.utils.model_free import SensorSuite
@@ -23,7 +23,9 @@ class Carrera2DEnv(gym.Env):
         self.L = 0.058  # 58 mm Radstand
         self.mass = 0.080  # 80 g Masse
         self.max_steer_angle = np.radians(30) # 30 Grad Lenkwinkel
-        self.max_speed = 0.9  # m/s
+        self.max_steer_change = 0.2 # Wie viel sich der Lenkwert pro Step ändern darf (0.0 bis 2.0 Bereich)
+        self.max_speed = 1.6  # m/s
+        self.mu = 0.3  # Reibwert für Grip-Limit (Untersteuern)
         
         # --- MASTER SKALIERUNGS-FAKTOR (basiert auf 830px Streckenbild) ---
         # 1 Meter = 236 Pixel
@@ -60,33 +62,60 @@ class Carrera2DEnv(gym.Env):
         self.sf_crossed_last_frame = False
         self.sensor_suite = SensorSuite(self.outer_wall, self.inner_wall) #maximale Raycastlänge in model_free.py definiert
         self.episode_reward = 0.0
+        self.current_steer = 0.0
+        self.last_steer_val = 0.0
+        self.steer_delta_history = deque(maxlen=30)
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         
         # Startzustand (in Metern!). Passe X und Y an, damit das Auto auf der Strecke steht.
         # Beispiel: 0.5m * 236 = 118 Pixel auf dem Bildschirm.
-        self.state = np.array([1.3, 0.4, 0.0, 0.0, 0.0]) # x, y, v, theta, omega
+        self.state = np.array([2.1, 0.4, 0.0, 0.0, 0.0]) # x, y, v, theta, omega hier ist der spawn
         
         # Initialisiere Pygame und lade Bilder
         self._init_render()
         self.frame_count = 0
         self.episode_reward = 0.0
+        self.current_steer = 0.0
         return self._get_obs(), {}
 
     def step(self, action):
-        gas, brake, steer = action
+        terminated = False
+        gas, brake, target_steer = action # Wir nennen es target_steer
         x, y, v, theta, omega = self.state
 
-        # --- 1. Physik-Engine Logik ---
-        force = gas * 1.0 - brake * 1.2 
+        # --- 1. Lenk-Trägheit (Rate Limiting) ---
+        # Die KI will 'target_steer', aber wir erlauben nur eine kleine Änderung
+        self.last_steer_val = self.current_steer
+        steer_diff = target_steer - self.current_steer #geforderte Lenkwinkel änderung
+        # Wir begrenzen die Änderung
+        steer_diff = np.clip(steer_diff, -self.max_steer_change, self.max_steer_change)
+        
+        # Der neue tatsächliche Lenkwert
+        self.current_steer += steer_diff
+        
+# --- 2. Physik-Engine Logik (mit self.current_steer) ---
+        force = gas * 1.0 - brake * 0.4 
         dv_dt = (force - (0.5 * v)) / self.mass 
         v_new = v + dv_dt * self.dt
         v_new = np.clip(v_new, -self.max_speed, self.max_speed)
 
-        delta = steer * self.max_steer_angle 
+        # Wir nutzen jetzt den trägen Lenkwert für die Geometrie
+        delta = self.current_steer * self.max_steer_angle 
+        
         if np.abs(v_new) > 0.01:
-            omega_new = (v_new * np.tan(delta)) / self.L
+            # 1. Theoretische Winkelgeschwindigkeit ohne Grip-Limit berechnen
+            omega_theoretisch = (v_new * np.tan(delta)) / self.L
+            
+            # 2. Grip-Limit definieren (Reibwert mu z.B. 0.6 für glatte Carrera-Schiene)
+            a_max = self.mu * 9.81  # Maximale Querbeschleunigung in m/s² VEREINFACHTER KAMMSCHERKREIS
+            
+            # 3. Maximal erlaubtes Omega berechnen basierend auf v_new
+            omega_max = a_max / np.abs(v_new)
+            
+            # 4. Echtes Omega clippen -> Simuliert das Untersteuern!
+            omega_new = np.clip(omega_theoretisch, -omega_max, omega_max)
         else:
             omega_new = 0.0 
 
@@ -99,7 +128,7 @@ class Carrera2DEnv(gym.Env):
         # Zustand speichern
         self.state = np.array([x_new, y_new, v_new, theta_new, omega_new])
 
-        # --- 2. Hitbox (car_poly) berechnen ---
+        # --- 3. Hitbox (car_poly) berechnen ---
         cx = x_new * self.pixels_per_meter
         cy = y_new * self.pixels_per_meter
         
@@ -109,7 +138,6 @@ class Carrera2DEnv(gym.Env):
         dx_s = (HITBOX_W / 2) * -math.sin(theta_new)
         dy_s = (HITBOX_W / 2) * math.cos(theta_new)
 
-        # Speichere die Ecken auch in self, damit wir sie später in Pygame zeichnen können
         self.car_corners = [
             (cx + dx_f + dx_s, cy + dy_f + dy_s),
             (cx + dx_f - dx_s, cy + dy_f - dy_s),
@@ -118,11 +146,10 @@ class Carrera2DEnv(gym.Env):
         ]
         self.car_poly = Polygon(self.car_corners)
 
-        # --- 3. Zustände prüfen (Schiedsrichter) ---
+        # --- 4. Zustände prüfen (Schiedsrichter) ---
         is_crashing = self.car_poly.intersects(self.outer_wall) or self.car_poly.intersects(self.inner_wall)
         sf_crossed = self.car_poly.intersects(self.sf_line)
         
-        # Fahrtrichtung prüfen
         dists = np.linalg.norm(self.outer_points - [cx, cy], axis=1)
         nearest_idx = np.argmin(dists)
         next_idx = (nearest_idx + 5) % len(self.outer_points)
@@ -132,39 +159,49 @@ class Carrera2DEnv(gym.Env):
         angle_diff = (theta_new - track_angle + math.pi) % (2 * math.pi) - math.pi
         correct_direction = abs(angle_diff) < (math.pi / 2)
 
-        # --- 4. Reward berechnen ---
+        # --- 5. Reward berechnen ---
         is_new_lap = sf_crossed and not self.sf_crossed_last_frame
         self.sf_crossed_last_frame = sf_crossed
 
-        reward, terminated = self.reward_calculator.calculate(
-            v_new, is_crashing, sf_crossed, is_new_lap, correct_direction
+        # 1. Delta & History berechnen
+        steer_delta = abs(steer_diff)
+        self.steer_delta_history.append(steer_delta)
+        
+        # 2: Das Tuple sauber entpacken (mit , terminated_from_calc)
+        reward, terminated_from_calc = self.reward_calculator.calculate(
+            v=v_new,
+            is_crashing=is_crashing,
+            sf_crossed=sf_crossed,
+            is_new_lap=is_new_lap,
+            correct_direction=correct_direction,
+            steer_delta=steer_delta,
+            steer_delta_history_sum=sum(self.steer_delta_history)
         )
-
-        # --- 5. Info & Return ---
-        # Wir übergeben die Status-Werte an 'info', um sie in Jupyter anzeigen zu können
-        info = {
-            'is_crashing': is_crashing,
-            'correct_direction': correct_direction,
-            'sf_crossed': sf_crossed
-        }
         
-        # 1. Alle Strafen/Boni für DIESEN Frame sammeln
-        #if is_crashing:
-        #    reward -= 50.0 
-        
-        if self.episode_reward <= -3000:
+        if terminated_from_calc:
             terminated = True
-            reward -= 100.0 # Der "Todesstoß"-Penalty
 
-        # 2. ERST JETZT den fertigen Frame-Reward auf das Lebenskonto addieren
+        # Jetzt ist 'reward' wieder ein reiner Float!
         self.episode_reward += reward
 
-        # 3. Frame-Counter und Truncation (Zeitlimit)
+        if self.episode_reward <= -3000:
+            terminated = True
+            reward -= 100.0
+
+        # Frame-Counter und Truncation
         self.frame_count += 1
         truncated = self.frame_count >= 2000
 
         obs = self._get_obs()
         
+        # Info für Debugging
+        info = {
+            'is_crashing': is_crashing,
+            'correct_direction': correct_direction,
+            'sf_crossed': sf_crossed,
+            'actual_steer': self.current_steer # Sehr hilfreich zum Debuggen!
+        }
+        reward = float(reward) # Sicherstellen, dass es ein Float ist
         return obs, reward, terminated, truncated, info
     
     def _get_obs(self):

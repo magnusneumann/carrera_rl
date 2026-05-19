@@ -4,25 +4,15 @@ import math
 from shapely.geometry import Polygon, LineString, Point
 from src.envs.carrera_2d_env import Carrera2DEnv 
 
-
 # --- 1. Shapely Geometrien initialisieren ---
-# 1. Rohe Splines laden (musst du vorher aus dem CV-Skript als .npy speichern)
+# 1. Rohe Splines laden
 outer_points = np.load('data/outer_raw_spline.npy')
 inner_points = np.load('data/inner_raw_spline.npy')
 
-# 2. Zu Shapely-Linien machen
-outer_line = LineString(outer_points)
-inner_line = LineString(inner_points)
+# 2. Zu Shapely-Linien machen und DIE GRENZEN AUFBLÄHEN (um 3 Pixel)
+outer_wall = LineString(outer_points).buffer(3.0, cap_style=1, join_style=1)
+inner_wall = LineString(inner_points).buffer(3.0, cap_style=1, join_style=1)
 
-# 3. DIE GRENZEN AUFBLÄHEN (z.B. um 3 Pixel)
-# Das macht aus dem dünnen Spline einen 6 Pixel dicken "Schlauch" (Wand)
-outer_wall = outer_line.buffer(3.0, cap_style=1, join_style=1)
-inner_wall = inner_line.buffer(3.0, cap_style=1, join_style=1)
-
-# --- Später in deiner WASD-Schleife ---
-# Crash ist True, wenn das Auto-Polygon EINE der beiden Wände berührt
-crash = car_poly.intersects(outer_wall) or car_poly.intersects(inner_wall)
-border_ok = not crash
 # Start-/Ziellinie als LineString
 sf_line = LineString([(462, 55), (468, 114)])
 
@@ -31,7 +21,7 @@ HITBOX_L = 20.0
 HITBOX_W = 7.0
 
 # --- 2. Environment starten ---
-env = Carrera2DEnv('data/strecke_klein.jpg', 'data/porsche_klein.png')
+env = Carrera2DEnv('data/strecke.png', 'data/carrera_car.png')
 obs, _ = env.reset()
 
 pygame.init()
@@ -89,21 +79,22 @@ while running:
     
     # --- 4. Auswertungen (Check Env) ---
     
-    # A. Track Limits Check
-    #border_ok = track_polygon.contains(car_poly)
+    # A. Track Limits Check (KORRIGIERT: Jetzt hier unten, nachdem car_poly existiert)
+    crash = car_poly.intersects(outer_wall) or car_poly.intersects(inner_wall)
+    border_ok = not crash
     
     # B. Start/Finish Check
     sf_crossed = car_poly.intersects(sf_line)
     
-    # C. Direction Check
-    # Finde den am nächsten gelegenen Punkt auf der Mittellinie
-    dists = np.linalg.norm(centerline_points - [cx, cy], axis=1)
+    # C. Direction Check (KORRIGIERT: Nutzt jetzt outer_points als Referenz)
+    # Finde den am nächsten gelegenen Punkt auf der Außenlinie
+    dists = np.linalg.norm(outer_points - [cx, cy], axis=1)
     nearest_idx = np.argmin(dists)
     
     # Nimm einen Punkt ca. 5 Indices weiter vorne, um den Vektor zu bilden
-    next_idx = (nearest_idx + 5) % len(centerline_points)
-    p1 = centerline_points[nearest_idx]
-    p2 = centerline_points[next_idx]
+    next_idx = (nearest_idx + 5) % len(outer_points)
+    p1 = outer_points[nearest_idx]
+    p2 = outer_points[next_idx]
     
     # Winkel der Strecke an dieser Stelle berechnen
     track_vec = p2 - p1
@@ -124,7 +115,7 @@ while running:
         (f"Border OK: {border_ok}", (0, 255, 0) if border_ok else (255, 0, 0)),
         (f"Start/Finish: {sf_crossed}", (255, 255, 0) if sf_crossed else (200, 200, 200)),
         (f"Direction OK: {correct_direction}", (0, 255, 0) if correct_direction else (255, 0, 0)),
-        (f"Nearest Idx: {nearest_idx} / {len(centerline_points)}", (255, 255, 255))
+        (f"Nearest Idx: {nearest_idx} / {len(outer_points)}", (255, 255, 255))
     ]
     
     # HUD auf den Screen blitten
