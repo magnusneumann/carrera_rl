@@ -7,9 +7,9 @@ class RewardCalculator:
         self.standstill_penalty = -1.0
         
         # Gewichte
-        self.w_speed = 3.0
-        self.w_smooth = 0.0 
-        self.w_integral = 0.5 
+        self.w_speed = 5.0
+        self.w_smooth = 0.5 
+        self.w_integral = 0.5
         self.w_reverse = 10.0 # Neuer, kontrollierbarer Faktor für Rückwärts
 
     def calculate(self, v, is_crashing, sf_crossed, is_new_lap, correct_direction, steer_delta, steer_delta_history_sum):

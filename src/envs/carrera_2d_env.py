@@ -23,7 +23,7 @@ class Carrera2DEnv(gym.Env):
         self.L = 0.058  # 58 mm Radstand
         self.mass = 0.080  # 80 g Masse
         self.max_steer_angle = np.radians(30) # 30 Grad Lenkwinkel
-        self.max_steer_change = 0.2 # Wie viel sich der Lenkwert pro Step ändern darf (0.0 bis 2.0 Bereich)
+        self.max_steer_change = 0.5 # Wie viel sich der Lenkwert pro Step ändern darf (0.0 bis 2.0 Bereich)
         self.max_speed = 1.6  # m/s
         self.mu = 0.3  # Reibwert für Grip-Limit (Untersteuern)
         
@@ -38,8 +38,8 @@ class Carrera2DEnv(gym.Env):
         # [v_norm, dist_l, dist_r]
         # Geschwindigkeit darf von -1.0 bis 1.0 gehen. Raycasts von 0.0 bis 1.0.
         self.observation_space = spaces.Box(
-            low=np.array([-1.0, 0.0, 0.0], dtype=np.float32), 
-            high=np.array([1.0, 1.0, 1.0], dtype=np.float32), 
+            low=np.array([-1.0, 0.0, 0.0, 0.0], dtype=np.float32), 
+            high=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), 
             dtype=np.float32
 )
         # Rendering Setup
@@ -213,10 +213,11 @@ class Carrera2DEnv(gym.Env):
         sensor_array, self.last_ray_lines = self.sensor_suite.get_lidar_observation(cx, cy, theta, v)
         
         dist_links = sensor_array[1]
-        dist_rechts = sensor_array[2]
+        dist_mitte = sensor_array[2] # Neuer mittlerer Sensor
+        dist_rechts = sensor_array[3]
         
         # Wir geben [v_normiert, dist_links, dist_rechts] zurück
-        obs = np.array([v / self.max_speed, dist_links, dist_rechts], dtype=np.float32)
+        obs = np.array([v / self.max_speed, dist_links, dist_mitte, dist_rechts], dtype=np.float32)
         return obs
 
     def _init_render(self):
