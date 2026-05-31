@@ -81,6 +81,6 @@ class VirtualCamera:
         
         # Um eine Dimension erweitern, damit es das Format (Kanäle, Höhe, Breite) hat
         # Das erwartet Stable Baselines3 oft für Bilder (1, 84, 84)
-        final_obs = np.expand_dims(normalized_view, axis=0)
-        
+        #final_obs = np.expand_dims(normalized_view, axis=0)
+        final_obs = np.expand_dims(resized_view, axis=0).astype(np.uint8)
         return final_obs, cropped_view # Wir geben cropped_view fürs Debuggen mit zurück

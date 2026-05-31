@@ -3,13 +3,13 @@ class RewardCalculator:
         self.crash_penalty = -300.0
         self.lap_bonus = 200.0
         
-        self.wrong_way_penalty = -25.0
-        self.standstill_penalty = -10.0
+        self.wrong_way_penalty = -30.0
+        self.standstill_penalty = -15.0
         
         # Gewichte
         self.w_speed = 6.0
-        self.w_smooth = 1 
-        self.w_integral = 0.5
+        self.w_smooth = 0.5 
+        self.w_integral = 0.0
         self.w_reverse = 10.0 # Neuer, kontrollierbarer Faktor für Rückwärts
 
     def calculate(self, v, is_crashing, sf_crossed, is_new_lap, correct_direction, steer_delta, steer_delta_history_sum):
@@ -32,7 +32,7 @@ class RewardCalculator:
                 reward += self.standstill_penalty
             elif v > 0.1: 
                 # Progressiver Reward: Schneller = exponentiell besser
-                reward += (v**2) * self.w_speed
+                reward += (v**2) * self.w_speed*2.0
             elif v < -0.1: 
                 # Harte, aber nicht explodierende Strafe fürs Rückwärtsfahren
                 reward += v * self.w_reverse 
