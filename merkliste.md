@@ -20,3 +20,10 @@ funktion/schliefe die alle trainings/architekturen lernen lässt und testet/verg
 Ich will Modell-frei PPO
 Ich will Modell-based probieren
 Ich will Imitation/Demonstration Learning probieren
+
+Virtuelle Kamera Bild - Reward funktion wie?
+Was für ein Netz ist aktuell hinten dran. Muss das größer werden bei mehr Input?
+Agenten weiter trainieren
+
+Mit Bilddaten lernen
+TrainingsFactory

@@ -4,11 +4,11 @@ class RewardCalculator:
         self.lap_bonus = 200.0
         
         self.wrong_way_penalty = -25.0
-        self.standstill_penalty = -1.0
+        self.standstill_penalty = -10.0
         
         # Gewichte
-        self.w_speed = 5.0
-        self.w_smooth = 0.5 
+        self.w_speed = 6.0
+        self.w_smooth = 1 
         self.w_integral = 0.5
         self.w_reverse = 10.0 # Neuer, kontrollierbarer Faktor für Rückwärts
 

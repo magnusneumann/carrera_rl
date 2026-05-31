@@ -9,7 +9,7 @@ class SensorSuite:
         self.max_ray_length = max_ray_length
         # Sensor-Winkel relativ zur Auto-Ausrichtung (z.B. -30°, 0°, +30°)
         #self.angles_deg = [-30.0, 30.0] 
-        self.angles_deg = [-90.0, 0.0, 90.0]
+        self.angles_deg = [-30.0, 0.0, 30.0]
 
     def get_lidar_observation(self, cx, cy, theta, v):
         """

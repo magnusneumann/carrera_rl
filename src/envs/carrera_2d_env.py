@@ -23,7 +23,7 @@ class Carrera2DEnv(gym.Env):
         self.L = 0.058  # 58 mm Radstand
         self.mass = 0.080  # 80 g Masse
         self.max_steer_angle = np.radians(30) # 30 Grad Lenkwinkel
-        self.max_steer_change = 0.5 # Wie viel sich der Lenkwert pro Step ändern darf (0.0 bis 2.0 Bereich)
+        self.max_steer_change = 1.0 # Wie viel sich der Lenkwert pro Step ändern darf (0.0 bis 2.0 Bereich)
         self.max_speed = 1.6  # m/s
         self.mu = 0.3  # Reibwert für Grip-Limit (Untersteuern)
         
