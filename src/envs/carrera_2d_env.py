@@ -13,9 +13,9 @@ from src.utils.model_free import SensorSuite
 from src.utils.virtual_camera import VirtualCamera
 
 class Carrera2DEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
+    metadata = {"render_modes": ["human", "hidden"], "render_fps": 30}
 
-    def __init__(self, track_image_path, car_image_path, obs_type="lidar"):
+    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden"):
         super().__init__()
         
         self.track_image_path = track_image_path
@@ -71,6 +71,7 @@ class Carrera2DEnv(gym.Env):
         self.clock = pygame.time.Clock()    
         self.isopen = True
         self.frame_count = 0
+        self.render_mode = render_mode
 
         # --- Shapely Track Limits laden ---
         self.outer_points = np.load('data/outer_raw_spline.npy')
@@ -88,6 +89,7 @@ class Carrera2DEnv(gym.Env):
         self.current_steer = 0.0
         self.last_steer_val = 0.0
         self.steer_delta_history = deque(maxlen=30)
+        self.frames_since_lap = 0
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -106,6 +108,7 @@ class Carrera2DEnv(gym.Env):
         self.frame_count = 0
         self.episode_reward = 0.0
         self.current_steer = 0.0
+        self.frames_since_lap = 0
         
         return self._get_obs(), {}
 
@@ -176,6 +179,8 @@ class Carrera2DEnv(gym.Env):
         correct_direction = abs(angle_diff) < (math.pi / 2)
 
         # --- 5. Reward berechnen ---
+        self.frames_since_lap +=1 #frame zählen, für Rundenzeiten
+        
         is_new_lap = sf_crossed and not self.sf_crossed_last_frame
         self.sf_crossed_last_frame = sf_crossed
 
@@ -189,9 +194,13 @@ class Carrera2DEnv(gym.Env):
             is_new_lap=is_new_lap,
             correct_direction=correct_direction,
             steer_delta=steer_delta,
-            steer_delta_history_sum=sum(self.steer_delta_history)
+            steer_delta_history_sum=sum(self.steer_delta_history),
+            lap_frames=self.frames_since_lap
         )
         
+        if is_new_lap:
+            self.frames_since_lap = 0
+
         if terminated_from_calc:
             terminated = True
 
@@ -259,8 +268,11 @@ class Carrera2DEnv(gym.Env):
             
             # WICHTIG: Wir nutzen pygame.HIDDEN, damit nicht beim Training 100 Fenster aufpoppen!
             # Wenn du es sehen willst, machst du das beim Trainieren über env.render("human")
-            self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))#, pygame.HIDDEN) # Hidden auskommentieren für Notebook
-            pygame.display.set_caption("Carrera RL")
+            if self.render_mode == "hidden":
+                self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), pygame.HIDDEN)
+            else:
+                self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+                pygame.display.set_caption("Carrera RL")
             
             car_surface = pygame.image.load(self.car_image_path).convert_alpha()
             self.rotated_car_initial_state = pygame.transform.rotate(car_surface, 180)

@@ -2,17 +2,17 @@ class RewardCalculator:
     def __init__(self):
         self.crash_penalty = -300.0
         self.lap_bonus = 200.0
-        
+        self.best_lap_bonus = 300.0
+        self.slow_lap_penalty = -300.0
         self.wrong_way_penalty = -30.0
         self.standstill_penalty = -15.0
-        
-        # Gewichte
         self.w_speed = 6.0
         self.w_smooth = 0.5 
         self.w_integral = 0.0
         self.w_reverse = 10.0 # Neuer, kontrollierbarer Faktor für Rückwärts
+        self.best_lap_frames = float('inf') # Für zukünftige Rundenzeit-Belohnung
 
-    def calculate(self, v, is_crashing, sf_crossed, is_new_lap, correct_direction, steer_delta, steer_delta_history_sum):
+    def calculate(self, v, is_crashing, sf_crossed, is_new_lap, correct_direction, steer_delta, steer_delta_history_sum, lap_frames):
         reward = 0.0
         terminated = False
 
@@ -47,5 +47,21 @@ class RewardCalculator:
         if steer_delta_history_sum > 2.0:
             # Jetzt bestrafen wir wirklich nur den Überschuss!
             reward -= (steer_delta_history_sum - 2.0) * self.w_integral
-        
+        # 6. Bestzeiten Bonus und Slow Lap Penality
+        # Hat er die Bestzeit geschlagen?
+            if lap_frames < self.best_lap_frames:
+                # Differenz berechnen (Wie viele Frames war er schneller?)
+                frame_improvement = self.best_lap_frames - lap_frames
+                
+                # Wenn es nicht die allererste Runde überhaupt ist, gibt es den fetten Bonus
+                if self.best_lap_frames != float('inf'):
+                    reward += frame_improvement * 5.0 # Z.B. 5 Punkte pro gespartem Frame!
+                
+                # Neue Bestzeit speichern
+                self.best_lap_frames = lap_frames
+            else:
+                # Er war langsamer als seine Bestzeit -> Leichte Strafe
+                frame_delay = lap_frames - self.best_lap_frames
+                reward -= frame_delay * 2.0
+
         return float(reward), terminated
