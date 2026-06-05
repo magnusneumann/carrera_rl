@@ -18,6 +18,11 @@ funktion/schliefe die alle trainings/architekturen lernen lässt und testet/verg
 
 
 Ich will Modell-frei PPO
+mit parametern/raycasts - müsste in real dann aus opencv kommen oder ähnlichem
+geschwindigkeit lenkwinkel aus ausgabe und bild
+nur 1 bild pro step
+2-3 bilder 
+
 Ich will Modell-based probieren
 Ich will Imitation/Demonstration Learning probieren
 

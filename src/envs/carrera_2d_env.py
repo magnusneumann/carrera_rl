@@ -51,9 +51,11 @@ class Carrera2DEnv(gym.Env):
             )
         elif self.obs_type == "vision":
             # high=255 und dtype=np.uint8
-            self.observation_space = spaces.Box(
-                low=0, high=255, shape=(1, 84, 84), dtype=np.uint8
-            )
+            self.observation_space = spaces.Dict({
+                "image": spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8),
+                # Aus "speed" machen wir "proprioception" (Geschwindigkeit und aktueller Lenkwinkel)
+                "proprioception": spaces.Box(low=np.array([-1.0, -1.0]), high=np.array([1.0, 1.0]), dtype=np.float32)
+            })
             self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
             
         elif self.obs_type == "multi":
@@ -257,7 +259,8 @@ class Carrera2DEnv(gym.Env):
             elif self.obs_type == "multi":
                 return {
                     "image": rl_image,
-                    "speed": np.array([v / self.max_speed], dtype=np.float32)
+                    # v normiert und steer normiert
+                    "proprioception": np.array([v / self.max_speed, self.current_steer], dtype=np.float32)
                 }
 
     def _init_render(self):
