@@ -240,21 +240,18 @@ class Carrera2DEnv(gym.Env):
             return np.array([v / self.max_speed, dist_links, dist_mitte, dist_rechts], dtype=np.float32)
         
         # --- Modus 2 & 3: Vision / Multi ---
-        # In carrera_2d_env.py -> _get_obs()
-        
-        # --- Modus 2 & 3: Vision / Multi ---
         else:
-            # Fallback, falls screen leer ist (MUSS AUCH uint8 sein!)
             if self.screen is None:
                 rl_image = np.zeros((1, 84, 84), dtype=np.uint8)
             else:
-                rl_image, _ = self.camera.get_car_centric_observation(self.screen, cx, cy)
+                # WICHTIG: Hier jetzt das 'theta' übergeben!
+                rl_image, _ = self.camera.get_car_centric_observation(self.screen, cx, cy, theta)
+            
             if self.obs_type == "vision":
                 return rl_image
             elif self.obs_type == "multi":
                 return {
                     "image": rl_image,
-                    # v normiert und steer normiert
                     "proprioception": np.array([v / self.max_speed, self.current_steer], dtype=np.float32)
                 }
 
