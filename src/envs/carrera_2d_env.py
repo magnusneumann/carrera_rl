@@ -55,9 +55,10 @@ class Carrera2DEnv(gym.Env):
             
         elif self.obs_type == "multi":
             self.observation_space = spaces.Dict({
-                # Hier ebenfalls uint8 und 255
                 "image": spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8),
-                "speed": spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
+                # Aus "speed" machen wir "proprioception" (Geschwindigkeit und aktueller Lenkwinkel)
+                "proprioception": spaces.Box(low=np.array([-1.0, -1.0]), 
+                                             high=np.array([1.0, 1.0]), dtype=np.float32)
             })
             self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
         else:
