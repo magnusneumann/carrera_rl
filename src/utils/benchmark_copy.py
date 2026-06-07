@@ -72,25 +72,24 @@ def run_benchmark(eval_models, render_mode="hidden", max_frames=700, track_path=
         # Modell laden
         model = PPO.load(zip_path)
         device = model.device
-        
-        # Trainings-Metadaten für die GFLOPs-Schätzung extrahieren
-        total_steps = getattr(model, "num_timesteps", 0)
-        n_epochs = getattr(model, "n_epochs", 10)
 
-        # --- B) FLOPs (Inferenz & Training) ---
+        # --- B) FLOPs ---
         macs = 0
         try:
             if obs_type == "lidar":
+                # Lidar hat eine flache Shape, z.B. (4,)
                 obs_shape = model.observation_space.shape
                 dummy = torch.randn(1, *obs_shape).to(device)
                 macs, _ = profile(model.policy.features_extractor, inputs=(dummy,), verbose=False)
                 
             elif obs_type == "vision":
+                # Holt sich automatisch (1, 84, 84) oder (1, 100, 166) oder (3, 100, 166)
                 obs_shape = model.observation_space.shape
                 dummy = torch.randn(1, *obs_shape).to(device)
                 macs, _ = profile(model.policy.features_extractor, inputs=(dummy,), verbose=False)
                 
             elif obs_type == "multi":
+                # Bei MultiInput müssen wir die Shapes aus dem Dictionary extrahieren
                 img_shape = model.observation_space.spaces["image"].shape
                 prop_shape = model.observation_space.spaces["proprioception"].shape
                 
@@ -103,12 +102,7 @@ def run_benchmark(eval_models, render_mode="hidden", max_frames=700, track_path=
         except Exception as e:
             print(f"  [Warnung] FLOPs konnten nicht berechnet werden: {e}")
 
-        # Inferenz-GFLOPs berechnen (1 MAC = 2 FLOPs)
-        inference_gflops = (macs * 2) / 1e9 if macs > 0 else 0.0
-        
-        # Gesamtaufwand Training schätzen: Rollout + Optimierung
-        # Formel: Steps * (1 Forward + 3 Backward * n_epochs)
-        training_gflops = inference_gflops * total_steps * (1 + 3 * n_epochs)
+        gflops = (macs * 2) / 1e9 if macs > 0 else 0.0
 
         # --- C) Simulation ---
         def make_env():
@@ -163,9 +157,8 @@ def run_benchmark(eval_models, render_mode="hidden", max_frames=700, track_path=
         results.append({
             "Model Name": name,
             "Type": obs_type.upper() + (" (Stack)" if is_stacked else ""),
-            "Train Time (min)": round(train_time_min, 1) if train_time_min > 0 else "-",
-            "~GFLOPs Inferenz": round(inference_gflops, 6),
-            "~GFLOPs Training": round(training_gflops, 2) if training_gflops > 0 else "-",
+            "Train Time (min)": round(train_time_min, 1) if train_time_min > 0 else "N/A",
+            "CNN/MLP GFLOPs": round(gflops, 6), # Auf 6 Stellen gerundet, damit Lidar nicht komplett 0 ist
             "Test Reward": round(total_reward, 1),
             "Lap Time (Frames)": best_lap_frames if best_lap_frames > 0 else "-",
             "Status": status
