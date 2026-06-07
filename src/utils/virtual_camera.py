@@ -6,6 +6,9 @@ class VirtualCamera:
     def __init__(self, crop_size=(150, 150), target_size=(84, 84)):
         self.crop_width, self.crop_height = crop_size
         self.target_width, self.target_height = target_size
+        self.target_width_global = 166
+        self.target_height_global = 100
+        self.levels = 4 # Anzahl der Graustufen, damit es nicht 255 Grautöne gibt
 
     def get_car_centric_observation(self, pygame_screen, cx, cy, theta):
         """
@@ -48,7 +51,39 @@ class VirtualCamera:
         gray_view = cv2.cvtColor(cropped_view, cv2.COLOR_BGR2GRAY)
         resized_view = cv2.resize(gray_view, (self.target_width, self.target_height), interpolation=cv2.INTER_AREA)
         
-        # 7. Channel-Dimension für Stable Baselines3 hinzufügen (uint8)
-        final_obs = np.expand_dims(resized_view, axis=0).astype(np.uint8)
+        # 7. Reduktion der Graustufen
+        # Teilt den Bereich 0-255 in 16 Blöcke ein
+        quantized_view = np.floor_divide(resized_view, 256 // self.levels) * (256 // self.levels)
+        
+
+        # 8. Channel-Dimension für Stable Baselines3 hinzufügen (uint8)
+        final_obs = np.expand_dims(quantized_view, axis=0).astype(np.uint8)
 
         return final_obs, cropped_view
+    
+    def get_global_observation(self, pygame_screen):
+        """
+        Nimmt das gesamte Pygame-Fenster auf, wandelt es in Graustufen um 
+        und skaliert es auf die Zielgröße (Standard: 84x84) herunter.
+        """
+        # 1. Pygame-Surface in Numpy-Array umwandeln
+        view = pygame.surfarray.array3d(pygame_screen)
+        view = np.transpose(view, (1, 0, 2)) # Pygame (X,Y,C) -> OpenCV (Y,X,C)
+
+        # 2. Direkt in Graustufen umwandeln (spart Rechenzeit gegenüber BGR-Umwegen)
+        gray_view = cv2.cvtColor(view, cv2.COLOR_RGB2GRAY)
+
+        # 3. Skalierung auf 84x84 (INTER_AREA ist der beste Algorithmus zum Verkleinern)
+        resized_view = cv2.resize(gray_view, (self.target_width_global, self.target_height_global), interpolation=cv2.INTER_AREA)
+        #resized_view = cv2.resize(gray_view, (self.target_width, self.target_height), interpolation=cv2.INTER_AREA)
+
+        # 4. Channel-Dimension für Stable Baselines3 hinzufügen (Shape: 1, 84, 84)
+        final_obs = np.expand_dims(resized_view, axis=0).astype(np.uint8)
+
+        # 5. Reduktion der Graustufen
+        # Teilt den Bereich 0-255 in 16 Blöcke ein
+        quantized_view = np.floor_divide(resized_view, 256 // self.levels) * (256 // self.levels)
+        
+        final_obs = np.expand_dims(quantized_view.astype(np.uint8), axis=0)
+
+        return final_obs, resized_view

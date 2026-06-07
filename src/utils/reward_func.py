@@ -43,24 +43,22 @@ class RewardCalculator:
 
         # 4. Smoothness (Strafe)
         reward -= abs(steer_delta) * self.w_smooth
+        
         # 5. Oszillations-Schutz (Integral)
         if steer_delta_history_sum > 2.0:
-            # Jetzt bestrafen wir wirklich nur den Überschuss!
             reward -= (steer_delta_history_sum - 2.0) * self.w_integral
-        # 6. Bestzeiten Bonus und Slow Lap Penality
-        # Hat er die Bestzeit geschlagen?
+            
+        # 6. RUNDEN-LOGIK (WICHTIG: Hier korrekt eingerückt!)
+        if sf_crossed and is_new_lap:
+            reward += self.lap_bonus
+            
+            # Bestzeiten Bonus und Slow Lap Penalty DÜRFEN NUR HIER PASSIEREN
             if lap_frames < self.best_lap_frames:
-                # Differenz berechnen (Wie viele Frames war er schneller?)
                 frame_improvement = self.best_lap_frames - lap_frames
-                
-                # Wenn es nicht die allererste Runde überhaupt ist, gibt es den fetten Bonus
                 if self.best_lap_frames != float('inf'):
-                    reward += frame_improvement * 5.0 # Z.B. 5 Punkte pro gespartem Frame!
-                
-                # Neue Bestzeit speichern
+                    reward += frame_improvement * 5.0 
                 self.best_lap_frames = lap_frames
             else:
-                # Er war langsamer als seine Bestzeit -> Leichte Strafe
                 frame_delay = lap_frames - self.best_lap_frames
                 reward -= frame_delay * 2.0
 

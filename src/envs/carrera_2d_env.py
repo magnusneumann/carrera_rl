@@ -15,12 +15,14 @@ from src.utils.virtual_camera import VirtualCamera
 class Carrera2DEnv(gym.Env):
     metadata = {"render_modes": ["human", "hidden"], "render_fps": 30}
 
-    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden"):
+    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop"):
         super().__init__()
         
         self.track_image_path = track_image_path
         self.car_image_path = car_image_path
         self.obs_type = obs_type # "lidar", "vision", oder "multi"
+        self.render_mode = render_mode # "human" oder "hidden"
+        self.camera_view = camera_view # "crop" oder "full"
         
         # --- Physikalische Parameter (SI-Einheiten) ---
         self.dt = 1/30.0  
@@ -50,8 +52,12 @@ class Carrera2DEnv(gym.Env):
                 dtype=np.float32
             )
         elif self.obs_type == "vision":
-            self.observation_space = spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
-            self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
+            if self.camera_view == "global":
+                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 100, 166), dtype=np.uint8)
+                self.camera = VirtualCamera()
+            elif self.camera_view == "crop":
+                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
+                self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
             
         elif self.obs_type == "multi":
             self.observation_space = spaces.Dict({
@@ -69,7 +75,7 @@ class Carrera2DEnv(gym.Env):
         self.clock = pygame.time.Clock()    
         self.isopen = True
         self.frame_count = 0
-        self.render_mode = render_mode
+        
 
         # --- Shapely Track Limits laden ---
         self.outer_points = np.load('data/outer_raw_spline.npy')
@@ -245,8 +251,10 @@ class Carrera2DEnv(gym.Env):
             if self.screen is None:
                 rl_image = np.zeros((1, 84, 84), dtype=np.uint8)
             else:
-                # WICHTIG: Hier jetzt das 'theta' übergeben!
-                rl_image, _ = self.camera.get_car_centric_observation(self.screen, cx, cy, theta)
+                if self.camera_view == "global":
+                    rl_image, _ = self.camera.get_global_observation(self.screen)
+                else: # Default: "crop"
+                    rl_image, _ = self.camera.get_car_centric_observation(self.screen, cx, cy, theta)
             
             if self.obs_type == "vision":
                 return rl_image
