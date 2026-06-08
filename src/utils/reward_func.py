@@ -1,12 +1,12 @@
 class RewardCalculator:
     def __init__(self):
         self.crash_penalty = -300.0
-        self.lap_bonus = 200.0
-        self.best_lap_bonus = 300.0
+        self.lap_bonus = 50.0
+        self.best_lap_bonus = 1000.0
         self.slow_lap_penalty = -300.0
         self.wrong_way_penalty = -30.0
         self.standstill_penalty = -15.0
-        self.w_speed = 6.0
+        self.w_speed = 1.0
         self.w_smooth = 0.5 
         self.w_integral = 0.0
         self.w_reverse = 10.0 # Neuer, kontrollierbarer Faktor für Rückwärts
