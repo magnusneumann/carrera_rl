@@ -23,7 +23,7 @@ class Carrera2DEnv(gym.Env):
         self.obs_type = obs_type # "lidar", "vision", oder "multi"
         self.render_mode = render_mode # "human" oder "hidden"
         self.camera_view = camera_view # "crop" oder "full"
-        
+
         # --- Physikalische Parameter (SI-Einheiten) ---
         self.dt = 1/30.0  
         self.L = 0.058  # 58 mm Radstand
@@ -43,33 +43,7 @@ class Carrera2DEnv(gym.Env):
             dtype=np.float32
         )
 
-        # --- Gym Spaces: Observations (Dynamisch!) ---
-        if self.obs_type == "lidar":
-            # [v_norm, dist_l, dist_m, dist_r]
-            self.observation_space = spaces.Box(
-                low=np.array([-1.0, 0.0, 0.0, 0.0], dtype=np.float32), 
-                high=np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32), 
-                dtype=np.float32
-            )
-        elif self.obs_type == "vision":
-            if self.camera_view == "global":
-                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 100, 166), dtype=np.uint8)
-                self.camera = VirtualCamera()
-            elif self.camera_view == "crop":
-                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
-                self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
-            
-        elif self.obs_type == "multi":
-            self.observation_space = spaces.Dict({
-                "image": spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8),
-                # Aus "speed" machen wir "proprioception" (Geschwindigkeit und aktueller Lenkwinkel)
-                "proprioception": spaces.Box(low=np.array([-1.0, -1.0]), 
-                                             high=np.array([1.0, 1.0]), dtype=np.float32)
-            })
-            self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
-        else:
-            raise ValueError("obs_type muss 'lidar', 'vision' oder 'multi' sein.")
-
+        
         # Rendering Setup
         self.screen = None
         self.clock = pygame.time.Clock()    
@@ -94,6 +68,54 @@ class Carrera2DEnv(gym.Env):
         self.last_steer_val = 0.0
         self.steer_delta_history = deque(maxlen=30)
         self.frames_since_lap = 0
+
+        # --- Gym Spaces: Observations (Dynamisch!) ---
+        if self.obs_type == "lidar":
+            # KORREKTUR: Wir messen die Länge der Liste 'angles_deg', die IM Objekt liegt
+            num_rays = len(self.sensor_suite.angles_deg) 
+            total_features = 1 + num_rays # 1 für Geschwindigkeit + N Lidar-Strahlen
+
+            low_bounds = np.zeros(total_features, dtype=np.float32)
+            low_bounds[0] = -1.0 # Geschwindigkeit kann negativ sein
+            high_bounds = np.ones(total_features, dtype=np.float32)
+
+            self.observation_space = spaces.Box(
+                low=low_bounds, 
+                high=high_bounds, 
+                dtype=np.float32
+            )
+        elif self.obs_type == "vision":
+            if self.camera_view == "global":
+                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 100, 166), dtype=np.uint8)
+                self.camera = VirtualCamera()
+            elif self.camera_view == "crop":
+                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
+                self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
+            
+        elif self.obs_type == "multi":
+            # Das Bild bleibt fest das kleine, mitdrehende 84x84 Standard-Fenster
+            self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
+            
+            # Sensoren/Parameter dynamisch berechnen
+            num_rays = len(self.sensor_suite.angles_deg)
+            total_features = 2 + num_rays # 2 (für v und steer) + N Lidar-Strahlen
+            
+            # Grenzen definieren
+            low_bounds = np.zeros(total_features, dtype=np.float32)
+            low_bounds[0] = -1.0  # Normalisierte Geschwindigkeit kann negativ sein
+            low_bounds[1] = -1.0  # Lenkwinkel kann negativ sein (links lenken)
+            # Die Indizes ab 2 (Lidar-Strahlen) bleiben als Minimum bei 0.0
+            
+            high_bounds = np.ones(total_features, dtype=np.float32)
+            
+            self.observation_space = spaces.Dict({
+                "image": spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8),
+                "proprioception": spaces.Box(low=low_bounds, high=high_bounds, dtype=np.float32)
+            })
+            self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))
+        else:
+            raise ValueError("obs_type muss 'lidar', 'vision' oder 'multi' sein.")
+
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -237,15 +259,22 @@ class Carrera2DEnv(gym.Env):
         x_m, y_m, v, theta, _ = self.state
         cx = x_m * self.pixels_per_meter
         cy = y_m * self.pixels_per_meter
-        
+    
         # --- Modus 1: Lidar ---
         if self.obs_type == "lidar":
             sensor_array, self.last_ray_lines = self.sensor_suite.get_lidar_observation(cx, cy, theta, v)
-            dist_links = sensor_array[1]
-            dist_mitte = sensor_array[2] 
-            dist_rechts = sensor_array[3]
-            return np.array([v / self.max_speed, dist_links, dist_mitte, dist_rechts], dtype=np.float32)
-        
+            
+            # 1. Normalisierte Geschwindigkeit als Single-Element-Array (Größe 1)
+            v_norm = np.array([v / self.max_speed], dtype=np.float32)
+            
+            # 2. KORREKTUR: Wir schneiden das erste Element ab und nehmen NUR die echten Strahlen ab Index 1!
+            actual_distances = sensor_array[1:].astype(np.float32)
+            
+            # 3. Geschwindigkeit und die echten Lidar-Strahlen dynamisch zusammenkleben
+            # (1 + 2 Strahlen = 3 Features -> Matcht perfekt mit dem Space!)
+            extended_obs = np.concatenate([v_norm, actual_distances])
+            
+            return extended_obs
         # --- Modus 2 & 3: Vision / Multi ---
         else:
             if self.screen is None:
@@ -259,9 +288,26 @@ class Carrera2DEnv(gym.Env):
             if self.obs_type == "vision":
                 return rl_image
             elif self.obs_type == "multi":
+                # 1. Bild holen: Immer die car-centric Ansicht (Crop) nutzen
+                if self.screen is None:
+                    rl_image = np.zeros((1, 84, 84), dtype=np.uint8)
+                else:
+                    rl_image, _ = self.camera.get_car_centric_observation(self.screen, cx, cy, theta)
+                
+                # 2. Lidar-Daten holen und das erste Element (Index 0) abschneiden
+                sensor_array, self.last_ray_lines = self.sensor_suite.get_lidar_observation(cx, cy, theta, v)
+                actual_distances = sensor_array[1:].astype(np.float32)
+                
+                # 3. Numerische Parameter zusammenbauen: [v_norm, steer, dist_1, dist_2, ...]
+                v_norm = np.array([v / self.max_speed], dtype=np.float32)
+                steer_norm = np.array([self.current_steer], dtype=np.float32)
+                
+                # Alle Parameter dynamisch zusammenkleben
+                param_vector = np.concatenate([v_norm, steer_norm, actual_distances])
+                
                 return {
                     "image": rl_image,
-                    "proprioception": np.array([v / self.max_speed, self.current_steer], dtype=np.float32)
+                    "proprioception": param_vector
                 }
 
     def _init_render(self):

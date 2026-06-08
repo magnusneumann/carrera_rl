@@ -27,3 +27,4 @@ __pycache__/
 #alle Probeläufe weglassen, damit man die relevanten Dateien nicht verliert
 Archive/alte_Logs/
 Archive/alte_Modelle/
+tensorboard_logs/
