@@ -59,6 +59,7 @@ def run_benchmark(eval_models, render_mode="hidden", max_frames=700, track_path=
         zip_path = cfg["model_path"]
         obs_type = cfg["obs_type"]
         is_stacked = cfg.get("is_stacked", False)
+        camera_view = cfg.get("camera_view", "crop")
         
         if not os.path.exists(zip_path):
             print(f"Überspringe '{name}': Datei {zip_path} nicht gefunden.")
@@ -112,7 +113,7 @@ def run_benchmark(eval_models, render_mode="hidden", max_frames=700, track_path=
 
         # --- C) Simulation ---
         def make_env():
-            return Carrera2DEnv(track_path, car_path, obs_type=obs_type, render_mode=render_mode)
+            return Carrera2DEnv(track_path, car_path, obs_type=obs_type, render_mode=render_mode, camera_view=camera_view)
 
         if is_stacked:
             env = VecFrameStack(DummyVecEnv([make_env]), n_stack=3)
