@@ -129,7 +129,7 @@ def run_benchmark(eval_models, render_mode="hidden", max_frames=700, track_path=
         in_sf_zone = False
 
         for step in range(max_frames):
-            action, _ = model.predict(obs, deterministic=True)
+            action, _ = model.predict(obs, deterministic=False)
             
             if is_stacked:
                 obs, rewards, dones, infos = env.step(action)
