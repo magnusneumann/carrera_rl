@@ -5,4 +5,5 @@
 Umgebung herstellen
 source .rl_venv/bin/activate
 
-spannend:beim weiter trainieren hybrid rew_mean steigt auf über 1000 an, fällt dann wieder auf fast 0
+tensorboard --logdir ./tensorboard_logs/
+um lernverläufe einzusehen
