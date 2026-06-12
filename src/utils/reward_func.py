@@ -2,8 +2,8 @@ class RewardCalculator:
     def __init__(self):
         self.crash_penalty = -300.0
         self.lap_bonus = 50.0
-        self.best_lap_bonus = 1000.0
-        self.slow_lap_penalty = -300.0
+        self.best_lap_bonus = 200.0
+        self.slow_lap_penalty = -30.0
         self.wrong_way_penalty = -30.0
         self.standstill_penalty = -15.0
         self.w_speed = 1.0
@@ -38,9 +38,12 @@ class RewardCalculator:
                 reward += v * self.w_reverse 
         
         # 3. Runden-Bonus
-        if sf_crossed and is_new_lap:
+        if sf_crossed and is_new_lap and v>0:
             reward += self.lap_bonus
-
+        # Strafe für rückwärts über die Zielinie fahren
+        if sf_crossed and v < 0:
+            reward -= self.lap_bonus
+        
         # 4. Smoothness (Strafe)
         reward -= abs(steer_delta) * self.w_smooth
         
@@ -50,7 +53,7 @@ class RewardCalculator:
             
         # 6. RUNDEN-LOGIK (WICHTIG: Hier korrekt eingerückt!)
         if sf_crossed and is_new_lap:
-            reward += self.lap_bonus
+            
             
             # Bestzeiten Bonus und Slow Lap Penalty DÜRFEN NUR HIER PASSIEREN
             if lap_frames < self.best_lap_frames:

@@ -99,7 +99,7 @@ class Carrera2DEnv(gym.Env):
         super().reset(seed=seed)
         
         # Startzustand: x, y, v, theta, omega
-        self.state = np.array([2.1, 0.4, 0.0, 0.0, 0.0]) 
+        self.state = np.array([1.91, 0.35, 0.0, 0.0, 0.0]) 
         
         self._init_render()
         
@@ -113,6 +113,7 @@ class Carrera2DEnv(gym.Env):
         self.episode_reward = 0.0
         self.current_steer = 0.0
         self.frames_since_lap = 0
+        self.reward_calculator.best_lap_frames = float('inf')   
         
         return self._get_obs(), {}
 
