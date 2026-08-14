@@ -1,5 +1,5 @@
 {
-  "episoden": 3,
+  "episoden": 2,
   "reward": {
     "version": "v3_rundenzeit",
     "crash_penalty": -300.0,
@@ -23,27 +23,39 @@
       "tempo": 0.6150183961849811,
       "strecke_m": 3.5671066978728905,
       "name": "09_Vision_SAC_Finetuned_20260728_2147",
-      "obs": "vision"
+      "obs": "vision",
+      "global_size": [
+        166,
+        100
+      ]
     },
     {
       "reward": -30.306694741128013,
       "reward_std": 0.0,
       "ep_len": 256.0,
       "runden": 0.0,
-      "tempo": 0.8109637030199804,
+      "tempo": 0.8109637030199803,
       "strecke_m": 6.920223599103832,
       "name": "09_Vision_SAC_Finetuned_20260729_2210",
-      "obs": "vision"
+      "obs": "vision",
+      "global_size": [
+        166,
+        100
+      ]
     },
     {
       "reward": -349.8218557834625,
       "reward_std": 0.0,
       "ep_len": 33.0,
       "runden": 0.0,
-      "tempo": 0.12461417042723895,
+      "tempo": 0.12461417042723896,
       "strecke_m": 0.13707558746996287,
       "name": "09_Vision_SAC_Finetuned_20260731_2331",
-      "obs": "vision"
+      "obs": "vision",
+      "global_size": [
+        166,
+        100
+      ]
     },
     {
       "reward": 6116.373170571402,
@@ -53,7 +65,11 @@
       "tempo": 1.1850801005977984,
       "strecke_m": 79.00534003985324,
       "name": "12_Lidar_SAC_Kontrolle_20260814_1748",
-      "obs": "lidar"
+      "obs": "lidar",
+      "global_size": [
+        166,
+        100
+      ]
     },
     {
       "reward": 4698.50381787098,
@@ -63,7 +79,11 @@
       "tempo": 1.0453461749826367,
       "strecke_m": 69.68974499884246,
       "name": "01_Lidar_Baseline_20260728_1757",
-      "obs": "lidar"
+      "obs": "lidar",
+      "global_size": [
+        166,
+        100
+      ]
     },
     {
       "reward": 6401.713115532184,
@@ -73,7 +93,11 @@
       "tempo": 1.2162373482042441,
       "strecke_m": 81.08248988028295,
       "name": "01_Lidar_Baseline_20260728_1800",
-      "obs": "lidar"
+      "obs": "lidar",
+      "global_size": [
+        166,
+        100
+      ]
     }
   ]
 }

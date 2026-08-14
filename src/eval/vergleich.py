@@ -35,10 +35,11 @@ TRACK, CAR = 'data/strecke.png', 'data/carrera_car.png'
 RUNDE_M = 7.66          # Mittellinie, siehe rl_erkenntnisse.md Referenzwerte
 
 
-def baue_env(obs_type, n_stack):
+def baue_env(obs_type, n_stack, global_size):
     def f():
         return Carrera2DEnv(TRACK, CAR, obs_type=obs_type, render_mode="hidden",
-                            camera_view="global" if obs_type == "vision" else "crop")
+                            camera_view="global" if obs_type == "vision" else "crop",
+                            global_size=global_size)
     env = DummyVecEnv([f])
     if n_stack > 1:
         env = VecFrameStack(env, n_stack=n_stack, channels_order="first")
@@ -97,13 +98,18 @@ def kandidaten():
         if phys != 'measured_v2':
             continue                      # andere Physik, Policy nicht uebertragbar
         name = os.path.basename(os.path.normpath(d))
+        # Die Aufloesung aus dem Lauf selbst nehmen, nicht die Voreinstellung:
+        # ein bei 250x150 trainiertes Modell passt sonst nicht in die Umgebung.
+        # target_hw ist [Hoehe, Breite], global_size ist (Breite, Hoehe).
+        hw = c.get('env', {}).get('vision', {}).get('target_hw')
+        gs = (int(hw[1]), int(hw[0])) if hw else (166, 100)
         aus.append((name, pfad, c.get('algorithm', 'SAC'),
-                    c.get('obs_type', 'vision'), int(c.get('n_stack', 1) or 1)))
+                    c.get('obs_type', 'vision'), int(c.get('n_stack', 1) or 1), gs))
     # Der Lidar-Experte liegt als einzelne Datei daneben
     for z in sorted(glob.glob('models/01_Lidar_Baseline_*.zip')):
         cfg = z.replace('.zip', '_config.json')
         if os.path.exists(cfg):
-            aus.append((os.path.basename(z)[:-4], z, 'PPO', 'lidar', 1))
+            aus.append((os.path.basename(z)[:-4], z, 'PPO', 'lidar', 1, (166, 100)))
     return aus
 
 
@@ -122,24 +128,26 @@ def main():
           f"w_integral={reward_jetzt.get('w_integral')}, "
           f"v_slow={reward_jetzt.get('v_slow')}")
     print(f"Rundenlaenge {RUNDE_M} m, Zeitlimit 2000 Frames\n")
-    print(f"{'Modell':<40}{'Beob.':<8}{'Reward':>10}{'±':>8}"
+    print(f"{'Modell':<40}{'Beobachtung':<13}{'Reward':>10}{'±':>8}"
           f"{'ep_len':>8}{'Runden':>8}{'Tempo':>8}")
-    print("-" * 90)
+    print("-" * 95)
 
     zeilen = []
-    for name, pfad, algo, obs_type, n_stack in kandidaten():
+    for name, pfad, algo, obs_type, n_stack, gs in kandidaten():
+        beschr = obs_type if obs_type == 'lidar' else f"{gs[0]}x{gs[1]}"
         try:
-            env = baue_env(obs_type, n_stack)
+            env = baue_env(obs_type, n_stack, gs)
             kls = PPO if algo == 'PPO' else SAC
             m = kls.load(pfad, device='cpu')
             e = fahre(m, env, args.episoden, dt, ppm)
             env.close()
         except Exception as fehler:
-            print(f"{name:<40}{obs_type:<8}  uebersprungen: {type(fehler).__name__}: {fehler}")
+            print(f"{name:<40}{beschr:<13}  uebersprungen: "
+                  f"{type(fehler).__name__}: {fehler}")
             continue
-        e['name'], e['obs'] = name, obs_type
+        e['name'], e['obs'], e['global_size'] = name, obs_type, list(gs)
         zeilen.append(e)
-        print(f"{name:<40}{obs_type:<8}{e['reward']:>10.1f}{e['reward_std']:>8.1f}"
+        print(f"{name:<40}{beschr:<13}{e['reward']:>10.1f}{e['reward_std']:>8.1f}"
               f"{e['ep_len']:>8.0f}{e['runden']:>8.1f}{e['tempo']:>8.2f}")
 
     if zeilen:

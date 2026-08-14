@@ -38,14 +38,29 @@ def lade_modell(pfad):
     return klasse.load(pfad, device="cpu"), algo
 
 
-def baue_env(camera_view="global", n_stack=3, longitudinal_model="measured_v2"):
+def groesse_aus_modell(model, n_stack=3):
+    """Aufloesung aus dem Beobachtungsraum des Modells ableiten.
+
+    Zuverlaessiger als eine Voreinstellung: ein bei 250x150 trainiertes Modell
+    laeuft sonst gegen eine 166x100-Umgebung und bricht mit einem Formfehler ab.
+    Der Raum ist (n_stack, H, W), global_size erwartet (Breite, Hoehe).
+    """
+    form = model.observation_space.shape
+    if len(form) != 3:
+        return (166, 100)
+    return (int(form[2]), int(form[1]))
+
+
+def baue_env(camera_view="global", n_stack=3, longitudinal_model="measured_v2",
+             global_size=(166, 100)):
     """Derselbe Wrapper-Aufbau wie im Training – sonst passt die
     Beobachtungsform nicht (Modell erwartet 3 gestapelte Bilder)."""
     def make():
         return Carrera2DEnv('data/strecke.png', 'data/carrera_car.png',
                             obs_type="vision", render_mode="hidden",
                             camera_view=camera_view,
-                            longitudinal_model=longitudinal_model)
+                            longitudinal_model=longitudinal_model,
+                            global_size=global_size)
     return VecFrameStack(DummyVecEnv([make]), n_stack=n_stack)
 
 
@@ -113,7 +128,8 @@ def main():
     args = p.parse_args()
 
     model, algo = lade_modell(args.model)
-    env = baue_env(longitudinal_model=args.physik)
+    gs = groesse_aus_modell(model)
+    env = baue_env(longitudinal_model=args.physik, global_size=gs)
 
     roh = env.envs[0].unwrapped
     lang = roh.get_env_config()["longitudinal"]
@@ -123,6 +139,7 @@ def main():
     print("=" * 66)
     print(f"  Modell     : {args.model}")
     print(f"  Algorithmus: {algo}")
+    print(f"  Kamera     : {gs[0]}x{gs[1]}  (aus dem Modell abgeleitet)")
     print(f"  Physik     : {lang['model']}")
     for k, wert in lang.items():
         if k != "model":
