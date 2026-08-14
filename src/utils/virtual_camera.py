@@ -10,15 +10,19 @@ class VirtualCamera:
         self.target_height_global = 100
         self.levels = 4 # Anzahl der Graustufen, damit es nicht 255 Grautöne gibt
 
-    def get_car_centric_observation(self, pygame_screen, cx, cy, theta):
+    def get_car_centric_observation(self, screen, cx, cy, theta):
         """
         cx, cy: Position des Autos in Pixeln
         theta: Ausrichtung des Autos in Radiant
+        screen: numpy-BGR-Array (hidden mode) oder pygame.Surface (human mode)
         """
-        # 1. Pygame-Surface in Numpy-Array (RGB) umwandeln
-        view = pygame.surfarray.array3d(pygame_screen)
-        view = np.transpose(view, (1, 0, 2)) # (X,Y,C) -> (Y,X,C) für OpenCV
-        view = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)
+        # 1. Screen in BGR-Numpy-Array umwandeln
+        if isinstance(screen, np.ndarray):
+            view = screen.copy()  # bereits BGR (H,W,3)
+        else:
+            view = pygame.surfarray.array3d(screen)
+            view = np.transpose(view, (1, 0, 2))  # (X,Y,C) -> (Y,X,C)
+            view = cv2.cvtColor(view, cv2.COLOR_RGB2BGR)
 
         # 2. Rotationswinkel berechnen (Ziel: Auto zeigt starr nach OBEN)
         # In unserem Pygame-Setup bedeutet 0 Grad "Rechts". 
@@ -61,17 +65,20 @@ class VirtualCamera:
 
         return final_obs, cropped_view
     
-    def get_global_observation(self, pygame_screen):
+    def get_global_observation(self, screen):
         """
-        Nimmt das gesamte Pygame-Fenster auf, wandelt es in Graustufen um 
-        und skaliert es auf die Zielgröße (Standard: 84x84) herunter.
+        Nimmt das gesamte Bild auf, wandelt es in Graustufen um
+        und skaliert es auf die Zielgröße herunter.
+        screen: numpy-BGR-Array (hidden mode) oder pygame.Surface (human mode)
         """
-        # 1. Pygame-Surface in Numpy-Array umwandeln
-        view = pygame.surfarray.array3d(pygame_screen)
-        view = np.transpose(view, (1, 0, 2)) # Pygame (X,Y,C) -> OpenCV (Y,X,C)
-
-        # 2. Direkt in Graustufen umwandeln (spart Rechenzeit gegenüber BGR-Umwegen)
-        gray_view = cv2.cvtColor(view, cv2.COLOR_RGB2GRAY)
+        # 1. Screen in Numpy-Array umwandeln
+        if isinstance(screen, np.ndarray):
+            view = screen
+            gray_view = cv2.cvtColor(view, cv2.COLOR_BGR2GRAY)
+        else:
+            view = pygame.surfarray.array3d(screen)
+            view = np.transpose(view, (1, 0, 2))  # Pygame (X,Y,C) -> OpenCV (Y,X,C)
+            gray_view = cv2.cvtColor(view, cv2.COLOR_RGB2GRAY)
 
         # 3. Skalierung auf 84x84 (INTER_AREA ist der beste Algorithmus zum Verkleinern)
         resized_view = cv2.resize(gray_view, (self.target_width_global, self.target_height_global), interpolation=cv2.INTER_AREA)
