@@ -1095,6 +1095,65 @@ und der Kamera-Agent konvergiert nicht bloß langsamer, er kommt nie an.
 Damit ist ausgeschlossen: Physik, Reward, Algorithmus, Replay-Buffer,
 Zeitlimit-Behandlung, Diskontfaktor. Übrig bleibt die Wahrnehmung.
 
+### Einwand: Lidar gegen Kamera vergleicht zwei Dinge auf einmal
+
+Der Kontrollversuch belegt, dass die Aufgabe unter der heutigen Physik und dem
+heutigen Reward lösbar ist. Er belegt **nicht**, welcher Teil des Sehwegs
+versagt — denn die Lidar-Beobachtung
+
+```python
+[v / max_speed, dist_links, dist_mitte, dist_rechts]   # carrera_2d_env.py:431
+```
+
+verschenkt **zwei** Dinge zugleich: die Geschwindigkeit als exakte Zahl *und*
+die Streckengeometrie als fertige Abstände. Der Kamera-Agent muss sich beides
+aus Pixeln erarbeiten.
+
+Trennen lässt sich das mit einer Ablation: dem fertig trainierten Lidar-Agenten
+gezielt Teile der Beobachtung verderben, die Physik aber normal weiterlaufen
+lassen.
+
+| Variante | Reward | ep_len | Runden | Tempo |
+|---|---|---|---|---|
+| unverändert | **6116.4** | 2000 | 11.0 | 1.19 |
+| v auf 0 gesetzt | −347.5 | 146 | 0.0 | 0.53 |
+| v eingefroren auf 0.5 | −191.4 | 187 | 0.0 | 0.71 |
+| v durch Rauschen ersetzt | −500.4 | 455 | 0.7 | 0.51 |
+| **v grob gerastert (4 Stufen)** | **−197.9** | 192 | 0.0 | 0.70 |
+| Abstände auf 0, v exakt | −3100.5 | 750 | 0.0 | 0.00 |
+| Abstände verrauscht, v exakt | 1018.7 | 664 | 2.7 | 0.73 |
+
+Zwei Befunde:
+
+1. **Die Geschwindigkeit trägt die Leistung.** Jede Verfälschung — null,
+   eingefroren, verrauscht oder auch nur grob gerastert — kostet über 100 % und
+   führt zu null Runden. Es genügt, sie auf vier Stufen zu quantisieren, bei
+   perfekter Geometrie.
+2. **Die Geometrie ist robuster.** Verrauschte Abstände bei exakter
+   Geschwindigkeit ergeben noch 1018.7 und 2.7 Runden — beschädigt, aber
+   funktionsfähig.
+
+Der quantitative Anschluss ist bemerkenswert:
+
+```
+Lidar mit gerasterter Geschwindigkeit    -197.9
+Lidar mit eingefrorener Geschwindigkeit  -191.4
+Vision SAC 2147                          -266.5
+Vision SAC 2331                          -349.8
+Vision SAC 2210                           -30.3
+```
+
+Die Kamera-Agenten liegen genau im Bereich „Lidar-Agent mit kaputtem
+Geschwindigkeitssignal". Genau das sagt die Subpixel-Rechnung voraus: unterhalb
+0.64 m/s ist die Geschwindigkeit im Bild nicht vorhanden, darüber nur grob
+aufgelöst.
+
+**Grenze dieser Aussage:** die Ablation prüft eine Policy, die *mit* exakter
+Geschwindigkeit trainiert wurde und ihr danach entzogen bekommt. Ein von Anfang
+an ohne Geschwindigkeit trainierter Agent könnte eine andere Strategie
+entwickeln, die ohne auskommt. Belegt ist also „diese Policy hängt an der
+Geschwindigkeit", nicht „keine Policy kommt ohne aus".
+
 ### Nebenbefund: SAC selbst ist stabil
 
 Der Kontrolllauf zeigt Fehler A **nicht**:
