@@ -40,23 +40,9 @@ def stapel_wie_vecframestack(bilder, dones):
     return aus
 
 
-def main():
-    rng = np.random.default_rng(0)
-
-    voller_raum = spaces.Box(0, 255, (N_STACK, H, W), dtype=np.uint8)
-    aktionsraum = spaces.Box(-1, 1, (2,), dtype=np.float32)
-
-    standard = ReplayBuffer(GROESSE, voller_raum, aktionsraum,
-                            n_envs=1, handle_timeout_termination=True)
-    neu = FramestapelReplayBuffer(GROESSE, voller_raum, aktionsraum, n_envs=1,
-                                  n_stack=N_STACK, channels_order="first",
-                                  handle_timeout_termination=True)
-
-    print(f"Speicher: Standard {standard.observations.nbytes + standard.next_observations.nbytes:>8} B"
-          f" | neu {neu.observations.nbytes + neu.next_observations.nbytes:>8} B")
-
-    # Bildfolge mit Episoden unterschiedlicher Länge erzeugen
-    N = 150
+def befuellen(N, standard, neu, rng):
+    """Erzeugt N Uebergaenge mit Episoden wechselnder Laenge, legt sie in
+    beide Buffer und gibt die dones zurueck."""
     bilder = [rng.integers(0, 255, (1, H, W), dtype=np.uint8) for _ in range(N + 1)]
     dones = np.zeros(N, dtype=bool)
     t = 0
@@ -84,8 +70,33 @@ def main():
         infos = [{}]
         standard.add(obs, next_obs, a, r, d, infos)
         neu.add(obs, next_obs, a, r, d, infos)
+    return dones
 
-    # Jeden gueltigen Index vergleichen
+
+def buffer_paar(groesse):
+    voller_raum = spaces.Box(0, 255, (N_STACK, H, W), dtype=np.uint8)
+    aktionsraum = spaces.Box(-1, 1, (2,), dtype=np.float32)
+    standard = ReplayBuffer(groesse, voller_raum, aktionsraum,
+                            n_envs=1, handle_timeout_termination=True)
+    neu = FramestapelReplayBuffer(groesse, voller_raum, aktionsraum, n_envs=1,
+                                  n_stack=N_STACK, channels_order="first",
+                                  handle_timeout_termination=True)
+    return standard, neu
+
+
+def test_ohne_umlauf():
+    """Grundfall: Buffer laeuft nie voll, alle Indizes sind gueltig."""
+    print("=" * 62)
+    print("Test 1: ohne Umlauf  (150 Uebergaenge in Buffer der Groesse 200)")
+    print("=" * 62)
+    rng = np.random.default_rng(0)
+    standard, neu = buffer_paar(GROESSE)
+    print(f"Speicher: Standard {standard.observations.nbytes + standard.next_observations.nbytes:>8} B"
+          f" | neu {neu.observations.nbytes + neu.next_observations.nbytes:>8} B")
+
+    N = 150
+    dones = befuellen(N, standard, neu, rng)
+
     idx = np.arange(min(N, GROESSE))
     env_idx = np.zeros(len(idx), dtype=int)
 
@@ -114,6 +125,71 @@ def main():
     print(f"\nEpisodengrenzen im Test: {int(dones.sum())}")
     print("BESTANDEN" if (ok_obs and ok_next) else "FEHLGESCHLAGEN")
     return ok_obs and ok_next
+
+
+def test_mit_umlauf():
+    """Der heikle Fall: der Ring ist uebergelaufen.
+
+    Dann liegt bei `pos` der aelteste Eintrag, bei `pos-1` der neueste.
+    Wer von `pos` aus zurueckgreift, holt Bilder aus einer voellig anderen
+    Zeit. Diese Indizes darf sample() gar nicht erst ziehen.
+    """
+    print()
+    print("=" * 62)
+    print("Test 2: MIT Umlauf   (350 Uebergaenge in Buffer der Groesse 200)")
+    print("=" * 62)
+    rng = np.random.default_rng(1)
+    standard, neu = buffer_paar(GROESSE)
+
+    N = 350                                    # laeuft 1.75-mal um
+    befuellen(N, standard, neu, rng)
+    assert neu.full, "Buffer haette voll sein muessen"
+    pos, tot = neu.pos, N_STACK - 1
+    kaputt = [(pos + k) % GROESSE for k in range(tot)]
+    print(f"pos = {pos}, voll = {neu.full}")
+    print(f"Indizes ohne erreichbare Vorgaenger: {kaputt}")
+
+    # a) Alle uebrigen Indizes muessen weiterhin exakt stimmen
+    idx = np.array([i for i in range(GROESSE) if i not in kaputt])
+    env_idx = np.zeros(len(idx), dtype=int)
+    ok_obs = np.array_equal(standard.observations[idx, env_idx],
+                            neu._stapel_bauen(idx, env_idx, folge=False))
+    ok_next = np.array_equal(standard.next_observations[idx, env_idx],
+                             neu._stapel_bauen(idx, env_idx, folge=True))
+    print(f"\n{len(idx)} gueltige Indizes nach Umlauf")
+    print(f"   Beobachtungsstapel identisch: {ok_obs}")
+    print(f"   Folgestapel        identisch: {ok_next}")
+
+    # b) Gegenprobe: waeren die kaputten Indizes wirklich falsch?
+    ki = np.array(kaputt)
+    falsch = not np.array_equal(
+        standard.observations[ki, np.zeros(len(ki), dtype=int)],
+        neu._stapel_bauen(ki, np.zeros(len(ki), dtype=int), folge=False))
+    print(f"   ausgeschlossene Indizes waeren tatsaechlich falsch: {falsch}")
+
+    # c) sample() darf sie nie ziehen
+    gezogen = set()
+    for _ in range(300):
+        gezogen |= set(
+            (np.random.randint(0, GROESSE - tot, size=64) + pos + tot) % GROESSE)
+    getroffen = gezogen & set(kaputt)
+    ok_sample = not getroffen
+    print(f"   sample(): {len(gezogen)} verschiedene Indizes aus "
+          f"{GROESSE} gezogen, davon kaputte: {len(getroffen)}")
+
+    alles = ok_obs and ok_next and falsch and ok_sample
+    print("\nBESTANDEN" if alles else "\nFEHLGESCHLAGEN")
+    return alles
+
+
+def main():
+    a = test_ohne_umlauf()
+    b = test_mit_umlauf()
+    print()
+    print("=" * 62)
+    print(f"Gesamt: {'BESTANDEN' if (a and b) else 'FEHLGESCHLAGEN'}")
+    print("=" * 62)
+    return a and b
 
 
 if __name__ == "__main__":

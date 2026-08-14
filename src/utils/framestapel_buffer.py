@@ -20,10 +20,18 @@ nennenswerte Rechenzeit.
 So arbeiten die DQN-Implementierungen von DeepMind, Dopamine und rlpyt.
 SB3 bringt es nicht mit.
 
-Die Feinheit sind Episodengrenzen: `VecFrameStack` setzt den Stapel bei jedem
-reset() auf null und schiebt die neuen Bilder hinten an. Am Episodenanfang ist
-er also mit Nullen aufgefüllt. Genau das muss die Rekonstruktion nachbilden,
-sonst stapelt sie Bilder aus zwei verschiedenen Episoden zusammen.
+Zwei Feinheiten
+---------------
+1. *Episodengrenzen.* `VecFrameStack` setzt den Stapel bei jedem reset() auf
+   null und schiebt die neuen Bilder hinten an. Am Episodenanfang ist er also
+   mit Nullen aufgefüllt. Genau das muss die Rekonstruktion nachbilden, sonst
+   stapelt sie Bilder aus zwei verschiedenen Episoden zusammen.
+
+2. *Der Umlauf des Rings.* Ist der Buffer voll, liegt bei `pos` der älteste
+   Eintrag und bei `pos-1` der neueste. Wer von `pos` aus zurückgreift, holt
+   Bilder, die buffer_size Schritte später aufgenommen wurden. Deshalb schließt
+   `sample()` die n_stack-1 Indizes ab `pos` aus. SB3s eigene Auswahl tut das
+   nur bei `optimize_memory_usage=True` und ist hier daher nicht ausreichend.
 
 Verwendung
 ----------
@@ -193,6 +201,36 @@ class FramestapelReplayBuffer(ReplayBuffer):
         # bilder liegt von neu nach alt vor, VecFrameStack ordnet alt -> neu
         achse = -1 if self._achse == -1 else 1
         return np.concatenate(bilder[::-1], axis=achse)
+
+    def sample(
+        self, batch_size: int, env: Optional[VecNormalize] = None
+    ) -> ReplayBufferSamples:
+        """Zieht Indizes und laesst dabei die aus, deren Vorgaenger fehlen.
+
+        Ist der Ring voll, zeigt `pos` auf den AELTESTEN Eintrag - sein
+        Vorgaenger wurde bereits ueberschrieben und enthaelt jetzt das
+        neueste Bild. Wer bei `pos` zurueckgreift, stapelt Bilder aus zwei
+        weit auseinanderliegenden Episoden zusammen.
+
+        Ungueltig sind genau pos ... pos+n_stack-2:
+            pos     braucht pos-1, pos-2   -> beide ueberschrieben
+            pos+1   braucht pos (gut), pos-1 -> eines ueberschrieben
+            pos+2   braucht pos+1, pos      -> beide gueltig
+        """
+        if not self.full:
+            # Noch nie umgelaufen: Index 0 greift auf die genullten Enden des
+            # Arrays zurueck - das entspricht genau dem Reset-Zustand von
+            # VecFrameStack und ist damit korrekt.
+            return self._get_samples(
+                np.random.randint(0, self.pos, size=batch_size), env=env
+            )
+
+        tot = self.n_stack - 1
+        batch_inds = (
+            np.random.randint(0, self.buffer_size - tot, size=batch_size)
+            + self.pos + tot
+        ) % self.buffer_size
+        return self._get_samples(batch_inds, env=env)
 
     def _get_samples(
         self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None
