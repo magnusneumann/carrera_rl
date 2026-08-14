@@ -1,0 +1,88 @@
+{
+  "run_name": "09_Vision_SAC_Finetuned_20260729_2210",
+  "algorithm": "SAC",
+  "total_timesteps": 5000000,
+  "learning_rate": 5e-05,
+  "n_envs": 1,
+  "obs_type": "vision",
+  "camera_view": "global",
+  "n_stack": 3,
+  "batch_size": 512,
+  "buffer_size": 500000,
+  "bsp": true,
+  "reward": {
+    "version": "v3_rundenzeit",
+    "crash_penalty": -300.0,
+    "lap_bonus": 50.0,
+    "wrong_way_penalty": -30.0,
+    "w_speed": 1.0,
+    "w_reverse": 10.0,
+    "v_slow": 0.6,
+    "w_slow": 4.0,
+    "w_smooth": 0.5,
+    "osc_threshold": 2.0,
+    "w_integral": 0.08,
+    "w_lap_improvement": 5.0
+  },
+  "env": {
+    "dt": 0.03333333333333333,
+    "L_m": 0.058,
+    "max_steer_angle_deg": 29.999999999999996,
+    "max_steer_change": 0.5,
+    "mu": 0.3,
+    "pixels_per_meter": 236.0,
+    "longitudinal": {
+      "model": "measured_v2",
+      "max_speed_ms": 1.9,
+      "allow_reverse": false,
+      "source": "analyse_v10 / kinematik_v10_104532.png",
+      "drive_lo": [
+        0.3,
+        0.506
+      ],
+      "drive_hi": [
+        2.05,
+        0.7166315789473683
+      ],
+      "a_brake": 0.16699999999999998,
+      "r0": 0.05,
+      "r1": 0.336
+    },
+    "geometry": {
+      "hitbox_px": [
+        20.0,
+        7.0
+      ],
+      "start_state": [
+        1.91,
+        0.35,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "vision": {
+      "model": "cv2_numpy_v1",
+      "renderer": "hidden",
+      "camera_view": "global",
+      "gray_levels": 4,
+      "target_hw": [
+        100,
+        166
+      ]
+    },
+    "assets": {
+      "track": "data/strecke.png",
+      "car": "data/carrera_car.png"
+    },
+    "seed": null,
+    "max_speed_ms": 1.9
+  },
+  "versions": {
+    "stable_baselines3": "2.8.0",
+    "torch": "2.12.0+cu132",
+    "python": "3.13.13"
+  },
+  "best_model_step": 4070000,
+  "best_model_reward": 875.6620314000002
+}

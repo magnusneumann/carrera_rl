@@ -1,0 +1,84 @@
+{
+  "run_name": "11_Vision_PPO_NoBSP_20260726_2233",
+  "algorithm": "PPO",
+  "total_timesteps": 2500000,
+  "n_envs": 12,
+  "obs_type": "vision",
+  "camera_view": "global",
+  "n_stack": 3,
+  "bsp": false,
+  "learning_rate": 0.0003,
+  "n_steps": 512,
+  "batch_size": 256,
+  "n_epochs": 10,
+  "ent_coef": 0.0,
+  "reward": {
+    "crash_penalty": -300.0,
+    "lap_bonus": 50.0,
+    "best_lap_bonus": 200.0,
+    "slow_lap_penalty": -30.0,
+    "wrong_way_penalty": -30.0,
+    "standstill_penalty": -15.0,
+    "w_speed": 1.0,
+    "w_smooth": 0.5,
+    "w_integral": 0.0,
+    "w_reverse": 10.0
+  },
+  "env": {
+    "dt": 0.033333,
+    "L_m": 0.058,
+    "mass_kg": 0.08,
+    "max_steer_angle_deg": 30.0,
+    "max_steer_change": 1.0,
+    "max_speed_ms": 1.6,
+    "mu": 0.3,
+    "pixels_per_meter": 236.0,
+    "longitudinal": {
+      "model": "force_drag_v1",
+      "mass_kg": 0.08,
+      "f_gas_n": 1.0,
+      "f_brake_n": 0.4,
+      "c_drag": 0.5,
+      "max_speed_ms": 1.6,
+      "allow_reverse": true
+    },
+    "geometry": {
+      "hitbox_px": [
+        20.0,
+        7.0
+      ],
+      "start_state": [
+        1.91,
+        0.35,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "assets": {
+      "track": "data/strecke.png",
+      "car": "data/carrera_car.png"
+    },
+    "_retro_note": "Block 'longitudinal', 'geometry' und 'assets' am 2026-07-28 nachtraeglich ergaenzt. Die Koeffizienten f_gas_n, f_brake_n und c_drag waren in carrera_2d_env.py step() hartcodiert und wurden zur Trainingszeit NICHT geloggt; sie stammen aus dem Quellcode zum Zeitpunkt der Ergaenzung. Das Projekt hat keine Versionsverwaltung, die Werte sind daher nicht unabhaengig pruefbar. Dafuer spricht, dass die env-Bloecke aller sieben vorhandenen Laeufe identisch sind. 'assets' und 'start_state' sind aus dem Trainingsnotebook uebernommen.",
+    "vision": {
+      "model": "cv2_numpy_v1",
+      "renderer": "hidden",
+      "camera_view": "global",
+      "gray_levels": 4,
+      "target_hw": [
+        100,
+        166
+      ]
+    },
+    "seed": null,
+    "_retro_note_vision": "Block 'vision' am 2026-07-28 nachtraeglich ergaenzt. Die Kameraparameter wurden zur Trainingszeit nicht geloggt. 'renderer' und 'model' sind aus dem Laufdatum abgeleitet: hidden-Mode lief bis 26.07.2026 22:28 ueber Pygame, danach ueber cv2/numpy (Umstellung wegen Fenster-Handle-Limit bei 12 parallelen Envs). Ein Vergleich beider Pfade am 28.07.2026 ergab 0.04 % abweichende Pixel bei identischen Graustufen, die Umstellung war also beobachtungsneutral. 'gray_levels' und 'target_hw' sind aus dem aktuellen Quellcode uebernommen und nicht unabhaengig pruefbar. 'seed': zur Trainingszeit wurde nachweislich kein Seed gesetzt (weder set_random_seed noch seed= im Notebook), daher null."
+  },
+  "versions": {
+    "stable_baselines3": "2.8.0",
+    "torch": "2.12.0+cu132",
+    "python": "3.13.13",
+    "note": "versions at retroactive config creation, not necessarily at training time"
+  },
+  "best_model_step": null,
+  "best_model_reward": null
+}
