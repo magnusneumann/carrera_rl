@@ -214,28 +214,56 @@ Die beiden Läufe **ohne** Einbruch sind genau die, die nie gut wurden. Das
 stützt die Richtung „nur wer etwas kann, kann es verlieren", ist aber trivial:
 wer nichts erreicht hat, kann nichts verlieren.
 
-### Was die Zahlen zur Zeitlimit-Hypothese sagen
+### Die Tensorboard-Logs lösen das auf: es sind zwei Fehler
 
-Der naheliegende Test: fällt tiefer, wessen Episoden ins Zeitlimit liefen?
+Die obige Tabelle stammt aus `evaluations.npz`. Die Diagnosegrößen im
+Tensorboard-Log zeigen ein anderes Bild — ausführlich in
+`rl_erkenntnisse.md`, Abschnitt 13d.
 
-**Die Daten stützen das nicht eindeutig.** `1432` (eplen 2000) und `2210`
-(eplen 759) fielen mit 1.37 und 1.36 praktisch gleich tief. Wäre das Zeitlimit
-die alleinige Ursache, müsste `2210` deutlich glimpflicher davonkommen.
+**`1432` — der Critic divergiert.** Der Verlust springt unmittelbar nach dem
+Höhepunkt von 22.2 auf 26 670, also um Faktor 1200. Kein Verlernen, sondern
+ein Stabilitätsereignis.
 
-Zwei Einschränkungen, die das relativieren:
+**`2210` — es gab nie einen Höhepunkt.** Der Trainings-Reward liegt über alle
+5 M Schritte zwischen −340 und −226. Die 875.7 in der Tabelle sind eine
+einzelne günstige deterministische Auswertung, keine erworbene Fähigkeit.
 
-1. `evaluations.npz` enthält die Episodenlängen der **deterministischen
-   Auswertung**, nicht des Trainings. Die Vergiftung entsteht aber aus den
-   Trainingsepisoden. Der hier verfügbare Wert ist nur ein Stellvertreter.
-2. Der relative Abfall hängt stark am Betrag der Spitze, ist also kein
-   sauberes Maß.
+> **Methodische Konsequenz:** eine Bestauswertung ohne entsprechende Bewegung
+> in `rollout/ep_rew_mean` ist ein Ausreißer, kein Können. Die Spalte `best`
+> in den Tabellen oben ist entsprechend vorsichtig zu lesen.
 
-**Damit bleibt die Hypothese offen** — plausibler Mechanismus, aber die
-vorhandenen Daten belegen ihn nicht. Ein gezielter Versuch ist nötig; siehe
-unten.
+### Die Zeitlimit-Hypothese ist damit weitgehend erledigt
 
-Weitere Kandidaten: davonlaufender Entropie-Koeffizient, Q-Überschätzung,
-Verteilungsdrift im Buffer, Verlust der Plastizität.
+Der Vergiftungsmechanismus setzt voraus, dass **Trainingsepisoden** das Limit
+erreichen. Bei `1432` auf dem Höhepunkt:
+
+```
+Auswertung (deterministisch)   ep_len 2000
+Training   (stochastisch)      ep_len  398
+```
+
+Im Training crashte der Agent lange vor Frame 2000, weil die Exploration ihn
+von der Ideallinie schob. Es landeten also kaum Timeout-Übergänge im Buffer.
+Die Korrektur vom 14.08. bleibt richtig, taugt aber **nicht als Erklärung** für
+die Einbrüche.
+
+### Warum unter `measured_v2` nichts mehr gelingt
+
+Die Beobachtung ist um Faktor 5 herunterskaliert. Bei 166×100 bewegt sich das
+Auto erst ab **0.64 m/s** um mehr als einen Pixel je Frame. Unter dem alten
+Modell fuhr es 5–12 m/s, also 8–19 px je Frame; unter `measured_v2` sind
+höchstens 3 px möglich, und unterhalb von 0.64 m/s sind die drei gestapelten
+Bilder identisch.
+
+Der Agent kann seine Geschwindigkeit in genau dem Bereich nicht wahrnehmen, in
+dem er startet — und wird vom Reward dafür bestraft (`v_slow = 0.6`).
+
+Der Lidar-Experte löst dieselbe Aufgabe unter derselben Physik und demselben
+Reward in 12 Minuten. Das grenzt die Ursache ein: nicht Physik, nicht Reward,
+nicht der Algorithmus, sondern die **Wahrnehmung**.
+
+`measured_v2` hat das nicht verursacht, sondern aufgedeckt. Das alte Modell
+verdeckte es durch ein zwanzigfach zu schnelles Fahrzeug.
 
 ---
 
@@ -261,27 +289,33 @@ kaum"), keine Zahlenvergleiche.
 Begründung: eine Änderung pro Lauf, sonst ist die Wirkung nicht zuzuordnen. Und
 ohne Referenz unter dem aktuellen Code ist gar nichts zuzuordnen.
 
-| Schritt | Was | Vergleich gegen | Budget |
+| Schritt | Was | Beantwortet | Budget |
 |---|---|---|---|
-| 0a | **SAC auf Lidar, Zeitlimit an/aus** | die zwei Läufe gegeneinander | 2 × 42 min |
-| 0b | **SAC mit Kamera, aktueller Stand** | setzt Gruppe E | 30–35 h |
-| 1 | Kamera ändern, sonst nichts | Schritt 0b, **gleiche Step-Zahl** | 30–35 h |
-| 2 | PPO unter der besseren Kamera | Schritt 0b oder 1, **gleiche Zeit** | 12–24 h |
+| 0 | **SAC auf Lidar unter `measured_v2`** | liegt es an der Wahrnehmung? | ~45 min |
+| 1 | Framestapel zeitlich spreizen | hebt es die Subpixel-Grenze auf? | 12–24 h |
+| 2 | SAC mit Kamera, aktueller Stand | setzt Gruppe E | 30–35 h |
+| 3 | PPO unter der besseren Kamera | SAC gegen PPO, **gleiche Zeit** | 12–24 h |
 
-### Warum Schritt 0a vorgeschaltet ist
+### Warum Schritt 0 vorgeschaltet ist
 
-Die Zeitlimit-Wirkung zeigt sich erst, wenn Episoden das Limit erreichen — also
-erst bei einem guten Agenten. Mit Kamera dauert das **2.78 M Steps bis zur
-ersten positiven Auswertung**. Ein kurzer Lauf beantwortet die Frage nicht, ein
-vollständiger kostet 30 Stunden je Seite.
+Der Verdacht lautet: unter `measured_v2` scheitert der Kamera-Agent an der
+Wahrnehmung, nicht an Physik, Reward oder Algorithmus. Der Lidar-**Experte**
+belegt das nur halb — er ist PPO, hat also weder Replay-Buffer noch dieselbe
+Lernmechanik.
 
-SAC auf Lidar-Beobachtung durchläuft dieselbe Mechanik — Replay-Buffer,
-Zeitlimit, keine Uhr in der Beobachtung — bei **197 Steps/s**, also 500 k in
-42 Minuten. Zwei Läufe mit `handle_timeout_termination` an und aus prüfen den
-Mechanismus für rund anderthalb Stunden statt für sechzig.
+**SAC auf Lidar** trennt sauber: gleiche Physik, gleicher Reward, gleicher
+Algorithmus, gleicher Buffer — nur die Beobachtung ist exakt statt
+verpixelt. Bei **197 Steps/s** kostet das 42 Minuten statt 30 Stunden.
 
-Das ersetzt den Kameralauf nicht, sondern entscheidet, ob sich die Erwartung
-lohnt.
+```
+lernt SAC+Lidar gut     ->  Ursache ist die Wahrnehmung, weiter mit Schritt 1
+lernt SAC+Lidar nicht   ->  Ursache liegt tiefer (SAC-Stabilitaet, Reward),
+                            dann sind Schritte 1-3 verfrueht
+```
+
+Nebenbei prüft der Lauf die Zeitlimit-Korrektur unter Bedingungen, unter denen
+sie überhaupt greifen kann: ein guter Lidar-Agent erreicht die 2000 Frames auch
+im Training, anders als die Kamera-Agenten.
 
 ### Warum bei Schritt 1 Steps und bei Schritt 2 Zeit als Maßstab?
 

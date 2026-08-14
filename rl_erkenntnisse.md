@@ -974,6 +974,135 @@ lazy frames, Dopamine OutOfGraphReplayBuffer, off-by-one in experience replay
 
 ---
 
+## 13d. Diagnose aus den Tensorboard-Logs: zwei verschiedene Fehler
+
+Lange wurde in diesem Projekt von *einem* Problem gesprochen — „jeder SAC-Lauf
+bricht nach seinem Höhepunkt ein". Die Diagnosegrößen aus den Tensorboard-Logs
+(`train/critic_loss`, `train/ent_coef`, `rollout/ep_len_mean`,
+`rollout/ep_rew_mean`) zeigen, dass es **zwei** sind.
+
+### Fehler A: der Critic divergiert (altes Fahrzeugmodell)
+
+Lauf `1432`, um den Höhepunkt herum:
+
+| Step | ep_rew | ep_len | ent_coef | critic_loss |
+|---|---|---|---|---|
+| 1 500 000 | 372.3 | 575 | 0.1199 | 41.1 |
+| 2 000 000 | **520.8** | 398 | 0.0978 | **22.2** |
+| 2 124 594 | −362.1 | 275 | 0.1154 | 57.3 |
+| 2 249 189 | 131.4 | 352 | 0.1292 | 1353.4 |
+| 2 271 899 | — | — | — | **26 670** |
+
+Der Critic-Verlust springt um **Faktor 1200**, und zwar unmittelbar nachdem er
+sein Minimum erreicht hat. Das ist kein allmähliches Verlernen, sondern ein
+Stabilitätsereignis. Der Agent bricht nicht ein, weil er die Aufgabe vergisst,
+sondern weil seine Wertfunktion explodiert.
+
+Bemerkenswert ist die Reihenfolge: erst das Minimum des Verlusts (22.2, der
+niedrigste des ganzen Laufs), dann die Explosion. Ein sehr kleiner TD-Fehler
+kurz vor dem Zusammenbruch passt zu Überanpassung — der Critic beschreibt die
+Daten im Buffer perfekt und bricht zusammen, sobald die Policy ihn verlässt.
+
+### Fehler B: der Agent lernt gar nicht erst (gemessenes Fahrzeugmodell)
+
+Lauf `2210`, über fünf Millionen Schritte:
+
+| Step | ep_rew | ep_len | ent_coef | critic_loss |
+|---|---|---|---|---|
+| 1 017 500 | −343.6 | 201 | 0.0512 | 39.9 |
+| 3 052 500 | −266.3 | 258 | 0.0620 | 383.2 |
+| 4 070 000 | −240.0 | 243 | 0.0578 | 66.1 |
+| 4 999 678 | −226.2 | 279 | 0.0580 | 51.0 |
+
+Der Trainings-Reward bewegt sich über den gesamten Lauf zwischen −340 und −226.
+**Es gibt keinen Höhepunkt.** Die 875.7, die in der Ergebnistabelle als `best`
+stehen, sind eine einzelne günstige deterministische Auswertung, keine
+erworbene Fähigkeit.
+
+Daraus folgt eine wichtige methodische Korrektur: `evaluations.npz` allein
+täuscht. Eine Bestauswertung ohne entsprechende Bewegung in
+`rollout/ep_rew_mean` ist ein Ausreißer, kein Können. Beide Kurven gehören
+nebeneinander betrachtet.
+
+### Warum das gemessene Modell die Kamera unbrauchbar macht
+
+Die Beobachtung ist 166×100, herunterskaliert von 830×500 — Faktor 5.
+Bewegung je Frame **in dem Bild, das der Agent tatsächlich sieht**:
+
+| v [m/s] | px im Original | px in der Beobachtung |
+|---|---|---|
+| 0.30 | 2.36 | 0.47 |
+| 0.60 | 4.72 | 0.94 |
+| 1.00 | 7.87 | 1.57 |
+| 1.90 (v_max neu) | 14.95 | 2.99 |
+| 5.00 (altes Modell) | 39.33 | 7.87 |
+| 12.00 (altes Modell) | 94.40 | 18.88 |
+
+```
+Schwelle 1 Pixel je Frame:   v = 0.64 m/s
+Auto in der Beobachtung:     4.6 x 1.8 px
+```
+
+Unter `force_drag_v1` fuhr das Auto mit 5–12 m/s und verschob sich um 8–19
+Pixel je Frame — der Dreierstapel zeigte Bewegung unübersehbar. Unter
+`measured_v2` sind es **höchstens 3 Pixel**, und unterhalb von 0.64 m/s ist die
+Verschiebung **kleiner als ein Pixel**: die drei gestapelten Bilder sind dann
+identisch.
+
+Der Agent startet aus dem Stand. Er muss also durch einen Geschwindigkeitsbereich,
+in dem er seine eigene Geschwindigkeit **prinzipiell nicht wahrnehmen kann** —
+und wird vom Reward genau dafür bestraft (`v_slow = 0.6`, also fast exakt die
+Wahrnehmungsschwelle).
+
+Der Lidar-Experte löst dieselbe Aufgabe unter derselben Physik und demselben
+Reward in 12 Minuten, weil er die Geschwindigkeit als exakte Zahl bekommt. Das
+grenzt die Ursache ein: **nicht Physik, nicht Reward, nicht der Algorithmus —
+die Wahrnehmung.**
+
+### Die Physikkorrektur hat nichts kaputtgemacht, sondern etwas aufgedeckt
+
+Wichtig für die Einordnung: `measured_v2` ist richtig und `force_drag_v1` war
+falsch. Das alte Modell hat das Wahrnehmungsproblem nur **verdeckt**, indem es
+das Fahrzeug zwanzigfach zu schnell machte. Die guten Zahlen aus Phase 1 sind
+teilweise ein Artefakt dieses Fehlers.
+
+### Ansatzpunkte
+
+Gegen Fehler B — Wahrnehmung, die vordringliche Baustelle:
+
+1. **Den Framestapel zeitlich spreizen.** Statt *t, t−1, t−2* die Frames
+   *t, t−4, t−8*. Bei 0.3 m/s ergibt das 3.8 Pixel Versatz statt 0.47. Kostet
+   nichts, ändert nichts am Prinzip „der Agent lernt aus Bildern", und ein
+   Buffer, der Stapel ohnehin über Indexversätze zusammensetzt (Abschnitt 9),
+   liefert es fast geschenkt. *Suchbegriffe:* frame skip, dilated frame
+   stacking, temporal stride
+2. **Höhere Auflösung.** Wirkt, aber schwächer: 300×180 senkt die Schwelle nur
+   von 0.64 auf 0.35 m/s.
+3. **Geschwindigkeit in die Beobachtung.** Wirksam, aber methodisch ein
+   anderes Experiment (siehe 8).
+
+Gegen Fehler A — Stabilität, laut Literatur:
+
+4. **Layer Normalization im Critic** — robusteste Einzelmaßnahme gegen
+   Überschätzung, synergiert mit Netz-Resets.
+5. **Vollständige Netz-Resets** in Intervallen gegen Plastizitätsverlust.
+6. **Kleinere Lernrate für den Entropie-Koeffizienten** gegen
+   Entropie-Kollaps. In `2210` fiel `ent_coef` auf 0.0296, in `1432` nur auf
+   0.098.
+7. Nicht empfohlen: Clipped Double-Q zusätzlich — verschlechtert in
+   Kombination mit Netzregularisierung.
+
+Quellen: [Overestimation, Overfitting, and Plasticity in Actor-Critic](https://arxiv.org/html/2403.00514v1),
+[Dissecting Discrete Soft Actor-Critic](https://arxiv.org/pdf/2509.09838),
+[Distribution-aware sampling of replay buffer](https://www.sciencedirect.com/science/article/abs/pii/S0020025526005712),
+[Remember and Forget for Experience Replay](https://arxiv.org/pdf/1807.05827)
+
+*Suchbegriffe:* Q-value divergence, deadly triad, primacy bias, plasticity loss,
+dormant neurons, layer normalization critic, periodic network resets, entropy
+collapse SAC, extrapolation error off-policy
+
+---
+
 ## 14. Offene theoretische Fragen aus diesem Projekt
 
 Punkte, die sich lohnen würden, aber nicht geklärt sind:
