@@ -1066,9 +1066,63 @@ falsch. Das alte Modell hat das Wahrnehmungsproblem nur **verdeckt**, indem es
 das Fahrzeug zwanzigfach zu schnell machte. Die guten Zahlen aus Phase 1 sind
 teilweise ein Artefakt dieses Fehlers.
 
+### Der Kontrollversuch entscheidet die Frage (14.08.)
+
+`12_Lidar_SAC_Kontrolle`: alles konstant gehalten — Physik `measured_v2`,
+Reward `v3_rundenzeit`, SAC, Buffer, Zeitlimit-Behandlung — und nur die
+Beobachtung getauscht. 500 000 Schritte, 54 Minuten.
+
+Damit die Zahlen vergleichbar sind, wurden **alle** Modelle unter `measured_v2`
+noch einmal in der heutigen Umgebung mit dem heutigen Reward gefahren
+(`python -m src.eval.vergleich`). Die Werte aus `evaluations.npz` taugen dafür
+nicht: `2210` lief mit `w_integral = 0.08`, der Kontrollversuch mit 0.0.
+
+| Modell | Beobachtung | Reward | ep_len | Runden | Tempo |
+|---|---|---|---|---|---|
+| Lidar-Experte (PPO) | exakt | **6401.7** | 2000 | 11 | 1.22 |
+| **Lidar SAC (Kontrolle)** | exakt | **6116.4** | 2000 | 11 | 1.19 |
+| Vision SAC `2210` | 166×100 px | −30.3 | 256 | 0 | 0.81 |
+| Vision SAC `2147` | 166×100 px | −266.5 | 174 | 0 | 0.62 |
+| Vision SAC `2331` | 166×100 px | −349.8 | 33 | 0 | 0.12 |
+
+**Der Unterschied ist die Beobachtung. Sonst nichts.**
+
+Zum Aufwand: SAC mit exakter Beobachtung erreicht die vollen 2000 Frames nach
+**50 000** Schritten und über 5000 Reward nach **70 000**. Mit Pixeln steht
+nach **5 000 000** Schritten null Runden. Das ist mindestens ein Faktor 70 —
+und der Kamera-Agent konvergiert nicht bloß langsamer, er kommt nie an.
+
+Damit ist ausgeschlossen: Physik, Reward, Algorithmus, Replay-Buffer,
+Zeitlimit-Behandlung, Diskontfaktor. Übrig bleibt die Wahrnehmung.
+
+### Nebenbefund: SAC selbst ist stabil
+
+Der Kontrolllauf zeigt Fehler A **nicht**:
+
+```
+critic_loss   max  314 (früh, bei 6520), Ende 9.6      1432 zum Vergleich: 26 670
+ent_coef      min 0.153, Ende 0.207                    kein Entropie-Kollaps
+```
+
+Es gab einen Einbruch — vier aufeinanderfolgende Auswertungen zwischen 410 k
+und 450 k fielen auf −3101 bei ep_len ~770 — der sich aber **von selbst
+erholte**, bei 490 k standen wieder 6005.
+
+Das ist aufschlussreich: dieselbe Lernmechanik, die mit Kamera in eine
+1200-fache Critic-Explosion läuft, verkraftet hier eine Störung und fängt sich
+wieder. Der Verdacht verschiebt sich damit von „SAC ist instabil" zu „SAC wird
+instabil, wenn der Critic aus mehrdeutigen Bildern lernen muss" — mehrdeutig in
+dem Sinn, dass identische Bildfolgen zu verschiedenen Geschwindigkeiten
+gehören können.
+
+Wichtig für die Einordnung des Vergleichs: alle Streuungen sind exakt 0. Der
+Startzustand ist fest und die Auswertung deterministisch, also sind die
+Episoden identisch. Das ist keine Präzision, sondern fehlende Variation — für
+belastbare Aussagen bräuchte es zufällige Startpositionen.
+
 ### Ansatzpunkte
 
-Gegen Fehler B — Wahrnehmung, die vordringliche Baustelle:
+Gegen Fehler B — Wahrnehmung, die belegte Ursache:
 
 1. **Den Framestapel zeitlich spreizen.** Statt *t, t−1, t−2* die Frames
    *t, t−4, t−8*. Bei 0.3 m/s ergibt das 3.8 Pixel Versatz statt 0.47. Kostet

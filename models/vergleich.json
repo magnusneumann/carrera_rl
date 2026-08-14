@@ -1,0 +1,79 @@
+{
+  "episoden": 3,
+  "reward": {
+    "version": "v3_rundenzeit",
+    "crash_penalty": -300.0,
+    "lap_bonus": 50.0,
+    "wrong_way_penalty": -30.0,
+    "w_speed": 1.0,
+    "w_reverse": 10.0,
+    "v_slow": 0.6,
+    "w_slow": 4.0,
+    "w_smooth": 0.5,
+    "osc_threshold": 2.0,
+    "w_integral": 0.0,
+    "w_lap_improvement": 5.0
+  },
+  "ergebnisse": [
+    {
+      "reward": -266.45861559547484,
+      "reward_std": 0.0,
+      "ep_len": 174.0,
+      "runden": 0.0,
+      "tempo": 0.6150183961849811,
+      "strecke_m": 3.5671066978728905,
+      "name": "09_Vision_SAC_Finetuned_20260728_2147",
+      "obs": "vision"
+    },
+    {
+      "reward": -30.306694741128013,
+      "reward_std": 0.0,
+      "ep_len": 256.0,
+      "runden": 0.0,
+      "tempo": 0.8109637030199804,
+      "strecke_m": 6.920223599103832,
+      "name": "09_Vision_SAC_Finetuned_20260729_2210",
+      "obs": "vision"
+    },
+    {
+      "reward": -349.8218557834625,
+      "reward_std": 0.0,
+      "ep_len": 33.0,
+      "runden": 0.0,
+      "tempo": 0.12461417042723895,
+      "strecke_m": 0.13707558746996287,
+      "name": "09_Vision_SAC_Finetuned_20260731_2331",
+      "obs": "vision"
+    },
+    {
+      "reward": 6116.373170571402,
+      "reward_std": 0.0,
+      "ep_len": 2000.0,
+      "runden": 11.0,
+      "tempo": 1.1850801005977984,
+      "strecke_m": 79.00534003985324,
+      "name": "12_Lidar_SAC_Kontrolle_20260814_1748",
+      "obs": "lidar"
+    },
+    {
+      "reward": 4698.50381787098,
+      "reward_std": 0.0,
+      "ep_len": 2000.0,
+      "runden": 10.0,
+      "tempo": 1.0453461749826367,
+      "strecke_m": 69.68974499884246,
+      "name": "01_Lidar_Baseline_20260728_1757",
+      "obs": "lidar"
+    },
+    {
+      "reward": 6401.713115532184,
+      "reward_std": 0.0,
+      "ep_len": 2000.0,
+      "runden": 11.0,
+      "tempo": 1.2162373482042441,
+      "strecke_m": 81.08248988028295,
+      "name": "01_Lidar_Baseline_20260728_1800",
+      "obs": "lidar"
+    }
+  ]
+}

@@ -86,7 +86,41 @@ Ursache vermutlich der Wertebereich: mit gamma 0.999 wachsen die zu lernenden
 Werte um Faktor 10, die Lernrate blieb bei 5e-5. Hergeleitet in
 `rl_erkenntnisse.md`, Abschnitt 4.
 
-## Phase 4 — aktueller Stand (01.08. und 14.08.)
+## Phase 4 — Kontrollversuch (14.08.)
+
+| Datum | Run | Beobachtung | Steps | Dauer | Reward | ep_len | Runden |
+|---|---|---|---|---|---|---|---|
+| 14.08. | `1748` | **Lidar** | 500 k | 54 min | **6116.4** | 2000 | 11 |
+
+Kein Kameralauf, sondern ein Kontrollversuch: alles konstant gehalten und nur
+die Beobachtung gegen exakte Zahlen getauscht. **Der Agent löst die Aufgabe** —
+volle 2000 Frames nach 50 k Schritten, über 5000 Reward nach 70 k.
+
+Damit steht fest, woran die Kamera-Agenten scheitern. Alle Modelle unter
+`measured_v2` wurden dafür in der heutigen Umgebung neu gefahren
+(`python -m src.eval.vergleich`), weil die Zahlen aus `evaluations.npz` aus
+verschiedenen Reward-Ständen stammen:
+
+| Modell | Beobachtung | Reward | ep_len | Runden | Tempo |
+|---|---|---|---|---|---|
+| Lidar-Experte (PPO) | exakt | 6401.7 | 2000 | 11 | 1.22 |
+| Lidar SAC (Kontrolle) | exakt | 6116.4 | 2000 | 11 | 1.19 |
+| Vision SAC `2210` | 166×100 px | −30.3 | 256 | 0 | 0.81 |
+| Vision SAC `2147` | 166×100 px | −266.5 | 174 | 0 | 0.62 |
+| Vision SAC `2331` | 166×100 px | −349.8 | 33 | 0 | 0.12 |
+
+Ausgeschlossen sind damit Physik, Reward, Algorithmus, Buffer,
+Zeitlimit-Behandlung und Diskontfaktor. Übrig bleibt die **Wahrnehmung**.
+
+Nebenbefund: der Critic-Verlust blieb bei maximal 314 und endete bei 9.6 —
+gegen 26 670 bei `1432`. Ein Einbruch zwischen 410 k und 450 k erholte sich von
+selbst. SAC ist also nicht grundsätzlich instabil.
+
+Einschränkung: alle Streuungen sind 0, weil Startzustand und Auswertung
+deterministisch sind. Die Episoden sind identisch — für belastbare Aussagen
+bräuchte es zufällige Startpositionen.
+
+## Phase 5 — aktueller Stand mit Kamera (01.08. und 14.08.)
 
 **Noch kein Lauf.** Gegenüber `2331` haben sich drei Dinge geändert:
 
@@ -289,33 +323,47 @@ kaum"), keine Zahlenvergleiche.
 Begründung: eine Änderung pro Lauf, sonst ist die Wirkung nicht zuzuordnen. Und
 ohne Referenz unter dem aktuellen Code ist gar nichts zuzuordnen.
 
+Schritt 0 ist **erledigt**: die Ursache ist die Wahrnehmung (Phase 4).
+
 | Schritt | Was | Beantwortet | Budget |
 |---|---|---|---|
-| 0 | **SAC auf Lidar unter `measured_v2`** | liegt es an der Wahrnehmung? | ~45 min |
-| 1 | Framestapel zeitlich spreizen | hebt es die Subpixel-Grenze auf? | 12–24 h |
-| 2 | SAC mit Kamera, aktueller Stand | setzt Gruppe E | 30–35 h |
+| ~~0~~ | ~~SAC auf Lidar~~ | ~~liegt es an der Wahrnehmung?~~ | **ja, erledigt** |
+| 1 | **Framestapel zeitlich spreizen** | hebt es die Subpixel-Grenze auf? | 12–24 h |
+| 2 | Auflösung erhöhen | wirkt schwächer, aber additiv | 12–24 h |
 | 3 | PPO unter der besseren Kamera | SAC gegen PPO, **gleiche Zeit** | 12–24 h |
 
-### Warum Schritt 0 vorgeschaltet ist
+### Warum Schritt 1 jetzt vorne steht
 
-Der Verdacht lautet: unter `measured_v2` scheitert der Kamera-Agent an der
-Wahrnehmung, nicht an Physik, Reward oder Algorithmus. Der Lidar-**Experte**
-belegt das nur halb — er ist PPO, hat also weder Replay-Buffer noch dieselbe
-Lernmechanik.
-
-**SAC auf Lidar** trennt sauber: gleiche Physik, gleicher Reward, gleicher
-Algorithmus, gleicher Buffer — nur die Beobachtung ist exakt statt
-verpixelt. Bei **197 Steps/s** kostet das 42 Minuten statt 30 Stunden.
+Die Subpixel-Rechnung nennt die Grenze: unter **0.64 m/s** bewegt sich das Auto
+weniger als einen Pixel je Frame, die drei gestapelten Bilder sind dann
+identisch. Zwei Hebel:
 
 ```
-lernt SAC+Lidar gut     ->  Ursache ist die Wahrnehmung, weiter mit Schritt 1
-lernt SAC+Lidar nicht   ->  Ursache liegt tiefer (SAC-Stabilitaet, Reward),
-                            dann sind Schritte 1-3 verfrueht
+Framestapel spreizen    t, t-4, t-8  statt  t, t-1, t-2
+                        bei 0.3 m/s: 3.8 px Versatz statt 0.47
+                        Schwelle faellt von 0.64 auf 0.16 m/s
+
+Aufloesung erhoehen     300x180 statt 166x100
+                        Schwelle faellt von 0.64 auf nur 0.35 m/s
 ```
 
-Nebenbei prüft der Lauf die Zeitlimit-Korrektur unter Bedingungen, unter denen
-sie überhaupt greifen kann: ein guter Lidar-Agent erreicht die 2000 Frames auch
-im Training, anders als die Kamera-Agenten.
+Das Spreizen ist der stärkere und der billigere Hebel — es kostet weder
+Speicher noch Rechenzeit, während höhere Auflösung beides kostet. Deshalb
+zuerst.
+
+Umsetzbar über den Replay-Buffer, der die Stapel ohnehin aus Indexversätzen
+zusammensetzt (`framestapel_buffer.py`): aus `batch_inds - z` wird
+`batch_inds - z*schritt`. Die Umgebung muss dafür ebenfalls gespreizt liefern,
+sonst weichen Training und Anwendung voneinander ab.
+
+### Was der Kontrollversuch offengelassen hat
+
+Die **Zeitlimit-Korrektur** ist weiterhin nicht isoliert geprüft. Sie war in
+diesem Lauf aktiv, und der Lauf hielt 450 k Schritte ohne Zusammenbruch — das
+ist aber kein Beleg, weil die Gegenprobe fehlt.
+
+Die **Critic-Divergenz** aus `1432` trat hier nicht auf. Ob sie unter Kamera
+wiederkommt, zeigt erst Schritt 1.
 
 ### Warum bei Schritt 1 Steps und bei Schritt 2 Zeit als Maßstab?
 
