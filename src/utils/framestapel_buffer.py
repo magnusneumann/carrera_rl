@@ -13,9 +13,22 @@ Einzelbild liegt dadurch rund n_stack-mal im Speicher.
 Lösung
 ------
 Beim Speichern nur das neueste Bild ablegen, den Stapel beim Ziehen aus den
-Nachbarindizes zusammensetzen. Beim Ziehen wird dieselbe Datenmenge bewegt,
-nur über n_stack Indizes statt einen — die Ersparnis kostet also keine
-nennenswerte Rechenzeit.
+Nachbarindizes zusammensetzen.
+
+Was das kostet
+--------------
+Gemessen bei der echten Konfiguration (batch_size=512, GPU, 600 Updates):
+
+    Standard-Buffer     49.1 ms/Update    2849.6 MB
+    dieser Buffer       54.9 ms/Update     949.9 MB
+                        +11.8 %           Faktor 3.00 weniger
+
+Die Zeit ist also NICHT umsonst. Der Aufschlag steckt allein im Ziehen
+(8.6 -> 13.9 ms je Batch), weil der Stapel dort erst entstehen muss.
+
+Wichtig für eigene Messungen: bei kleinem batch_size verschwindet der
+Unterschied im Rauschen. Eine frühere Messung mit batch_size=32 ergab
+12.9 gegen 12.8 s und war damit irreführend.
 
 So arbeiten die DQN-Implementierungen von DeepMind, Dopamine und rlpyt.
 SB3 bringt es nicht mit.
@@ -161,46 +174,73 @@ class FramestapelReplayBuffer(ReplayBuffer):
     # ------------------------------------------------------------------ #
     # Ziehen
     # ------------------------------------------------------------------ #
-    def _stapel_bauen(
-        self, batch_inds: np.ndarray, env_inds: np.ndarray, folge: bool
-    ) -> np.ndarray:
-        """Setzt für jeden Index den Framestapel aus den Vorgängern zusammen.
+    def _ordnen(self, gestapelt: np.ndarray) -> np.ndarray:
+        """(N, n_stack, *Einzelbild) -> die Form, die VecFrameStack liefert."""
+        n = len(gestapelt)
+        if self._achse == 0:
+            # (N, n, C, H, W) -> (N, n*C, H, W), reine Umdeutung ohne Kopie
+            return gestapelt.reshape((n,) + self._voller_raum.shape)
+        # (N, n, H, W, C) -> (N, H, W, n*C)
+        return np.moveaxis(gestapelt, 1, -2).reshape((n,) + self._voller_raum.shape)
 
-        `folge=True` baut den Stapel der FOLGEbeobachtung: dessen neuestes Bild
-        ist next_observations[i], die älteren sind observations[i], [i-1], ...
+    def _stapel_paar(self, batch_inds: np.ndarray, env_inds: np.ndarray):
+        """Baut Beobachtungs- UND Folgestapel mit je einem Zugriff.
+
+        Beide überlappen sich um n_stack-1 Bilder:
+
+            obs   = [ f_{n-1} ... f_1 , f_0 ]        f_z = observations[i-z]
+            next  = [ f_{n-2} ... f_0 , g   ]        g   = next_observations[i]
+
+        Statt die Bilder einzeln zu holen und zusammenzusetzen, wird EIN
+        Indexfeld der Form (N, n_stack) aufgebaut und in einem Zugriff
+        ausgelesen. Das Ergebnis liegt bereits in der richtigen Reihenfolge im
+        Speicher, die Umformung zum Stapel ist danach kostenlos. Der
+        Folgestapel entsteht aus demselben Ergebnis, um eine Stelle versetzt.
+
+        Gemessen bei batch_size=512: 9.5 ms statt 22 ms für den stückweisen
+        Aufbau, praktisch gleichauf mit SB3s Standard-Buffer (8.6 ms).
 
         Episodengrenzen: liegt zwischen zwei Bildern ein Episodenende, wird ab
         dort mit Nullen aufgefüllt — genauso wie VecFrameStack nach einem
         reset().
         """
-        bilder = []                                   # von neu nach alt
-        gueltig = np.ones(len(batch_inds), dtype=bool)
+        n, N = self.n_stack, len(batch_inds)
 
-        if folge:
-            # Neuestes Bild des Folgestapels ist die Folgebeobachtung selbst.
-            bilder.append(self.next_observations[batch_inds, env_inds])
-            # Darunter liegt die aktuelle Beobachtung - sie gehört immer zur
-            # selben Episode wie der Übergang, hier ist keine Prüfung nötig.
-            bilder.append(self.observations[batch_inds, env_inds])
-        else:
-            bilder.append(self.observations[batch_inds, env_inds])
+        # Platz k im Stapel (0 = ältestes) zeigt auf batch_inds - (n-1-k).
+        zurueck = np.arange(n - 1, -1, -1)
+        idx = (batch_inds[:, None] - zurueck[None, :]) % self.buffer_size
 
-        # Ab hier rückwärts durch die gespeicherten Bilder laufen.
-        zurueck = 1
-        while len(bilder) < self.n_stack:
-            idx = (batch_inds - zurueck) % self.buffer_size
-            # dones[idx] == 1 bedeutet: der Übergang bei idx beendete die
-            # Episode, das Bild dort gehört also zur vorherigen. Ab dann ist
-            # alles Ältere ebenfalls ungültig, deshalb kumulativ.
-            gueltig &= ~(self.dones[idx, env_inds] > 0)
-            bild = self.observations[idx, env_inds].copy()
-            bild[~gueltig] = 0
-            bilder.append(bild)
-            zurueck += 1
+        # Gültigkeit: Platz k ist nur erreichbar, wenn zwischen ihm und dem
+        # aktuellen Bild kein Episodenende liegt. dones[i-z] == 1 heißt, der
+        # Übergang bei i-z beendete die Episode; alles Ältere ist damit
+        # ebenfalls ungültig, deshalb das kumulative Produkt.
+        gueltig = np.ones((N, n), dtype=bool)
+        if n > 1:
+            zur = np.arange(1, n)
+            d = self.dones[(batch_inds[:, None] - zur[None, :]) % self.buffer_size,
+                           env_inds[:, None]] > 0
+            kum = np.cumprod(~d, axis=1)                    # (N, n-1)
+            gueltig[:, : n - 1] = kum[:, ::-1]              # Platz 0 = weiteste Sicht
 
-        # bilder liegt von neu nach alt vor, VecFrameStack ordnet alt -> neu
-        achse = -1 if self._achse == -1 else 1
-        return np.concatenate(bilder[::-1], axis=achse)
+        # Ein einziger Zugriff über das flache Feld: (N, n, *Einzelbild)
+        flach = self.observations.reshape((-1,) + self.observations.shape[2:])
+        bilder = flach[idx * self.n_envs + env_inds[:, None]]
+        bilder[~gueltig] = 0
+
+        # Folgestapel: dieselben Bilder um eine Stelle versetzt, oben die
+        # gespeicherte Folgebeobachtung.
+        folge = np.empty_like(bilder)
+        folge[:, : n - 1] = bilder[:, 1:]
+        folge[:, n - 1] = self.next_observations[batch_inds, env_inds]
+
+        return self._ordnen(bilder), self._ordnen(folge)
+
+    def _stapel_bauen(
+        self, batch_inds: np.ndarray, env_inds: np.ndarray, folge: bool
+    ) -> np.ndarray:
+        """Einzelner Stapel — nur für Tests, das Training nutzt _stapel_paar."""
+        obs, nxt = self._stapel_paar(batch_inds, env_inds)
+        return nxt if folge else obs
 
     def sample(
         self, batch_size: int, env: Optional[VecNormalize] = None
@@ -237,8 +277,7 @@ class FramestapelReplayBuffer(ReplayBuffer):
     ) -> ReplayBufferSamples:
         env_inds = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
 
-        obs = self._stapel_bauen(batch_inds, env_inds, folge=False)
-        next_obs = self._stapel_bauen(batch_inds, env_inds, folge=True)
+        obs, next_obs = self._stapel_paar(batch_inds, env_inds)
 
         daten = (
             self._normalize_obs(obs, env),

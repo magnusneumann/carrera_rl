@@ -350,14 +350,49 @@ zwei ihrer drei Bilder — jedes Einzelbild liegt also rund dreimal im Speicher.
 300×180, n_stack=3              75.4 GB             25.1 GB
 ```
 
-Beim Ziehen wird **dieselbe Datenmenge** bewegt (24.3 MB je Batch), nur über
-drei Indizes statt einen. Die Ersparnis ist also praktisch kostenlos.
-
 Umsetzung erfordert einen eigenen Replay-Buffer, der beim Speichern nur das
 neueste Bild ablegt und beim Ziehen die Stapel aus Nachbarindizes zusammensetzt.
-Die Feinheit sind **Episodengrenzen** — sonst stapelt man über einen `reset()`
-hinweg. So arbeiten die DQN-Implementierungen von DeepMind, Dopamine und
-rlpyt; SB3 hat es nur nicht eingebaut.
+Die Feinheiten sind **Episodengrenzen** und der **Umlauf des Rings** (13c) —
+sonst stapelt man über einen `reset()` oder über die Naht hinweg. So arbeiten
+die DQN-Implementierungen von DeepMind, Dopamine und rlpyt; SB3 hat es nur nicht
+eingebaut.
+
+### Was es kostet — und wie man sich dabei vermisst
+
+Naheliegende Annahme: beim Ziehen wird dieselbe Datenmenge bewegt, nur über
+drei Indizes statt einen, also ist die Ersparnis kostenlos.
+
+**Die Annahme ist falsch.** Gemessen an der echten Konfiguration:
+
+```
+Standard-Buffer     49.1 ms/Update     2849.6 MB
+Einzelbilder        54.9 ms/Update      949.9 MB
+                    +11.8 %            Faktor 3.00 weniger
+```
+
+Der Aufschlag steckt vollständig im Ziehen: 8.6 → 13.9 ms je Batch. Die Bytes
+sind zwar dieselben, aber der Stapel **existiert noch nicht** und muss erst
+entstehen — ein zusätzlicher Schreibdurchgang über die volle Batchgröße.
+
+Zwei methodische Punkte, die dabei mehr wert sind als das Ergebnis:
+
+1. **Die erste Messung war irreführend**, weil sie mit `batch_size=32` lief
+   statt mit den echten 512. Dort ergab sich 12.9 gegen 12.8 s, also
+   scheinbare Kostenfreiheit. Ein Mikro-Benchmark muss bei der Losgröße laufen,
+   die später auch benutzt wird — sonst dominieren feste Kosten.
+
+2. **Die naive Umsetzung war dreimal so teuer** wie nötig (26.1 ms statt 8.6).
+   Ursache war nicht der Datenzugriff — ein einzelner Gather von 512 Bildern
+   kostet 1 ms — sondern das stückweise Zusammensetzen mit `np.concatenate`.
+   Ein einziger Zugriff über ein Indexfeld der Form (N, n_stack) liefert das
+   Ergebnis bereits in der richtigen Speicherreihenfolge, die anschließende
+   Umformung ist dann kostenlos. Damit 13.9 ms.
+
+Ob sich der Tausch lohnt, hängt davon ab, was knapp ist. Hier war der
+Arbeitsspeicher die bindende Grenze für Auflösung und Buffergröße, die
+Rechenzeit nicht — also ja. Bei gleicher Wanduhrzeit bedeutet er allerdings
+rund 10 % weniger Gradientenschritte, was beim Vergleich von Läufen über diese
+Änderung hinweg zu berücksichtigen ist.
 
 ### Bit-Packing lohnt sich nicht
 
@@ -376,9 +411,23 @@ knappere Gut.
 ### Graustufen kosten nichts
 
 Ein häufiges Missverständnis: mehr Graustufen erhöhen den Aufwand **nicht**.
-Das Bild ist `uint8`, ein Byte pro Pixel, egal ob vier oder sechzehn Werte
-darin vorkommen. Die Quantisierung wirft nur Information weg, sie spart keinen
-Speicher. Mehr Stufen sind praktisch gratis.
+Das Bild ist `uint8`, ein Byte pro Pixel, egal ob vier oder 256 Werte darin
+vorkommen. Die Quantisierung wirft nur Information weg, sie spart keinen
+Speicher.
+
+In diesem Projekt steht `levels = 4`, umgesetzt als
+
+```python
+np.floor_divide(bild, 256 // levels) * (256 // levels)     # virtual_camera.py
+```
+
+Die Bilder enthalten also nur die Werte 0, 64, 128, 192 — bei 8 Bit Platz pro
+Pixel. Der Schritt auf 256 Stufen wäre in Speicher und Rechenzeit **exakt
+gratis**; das Byte wird ohnehin geschrieben.
+
+Gratis ist er allerdings nur technisch. Der Agent bekommt dann einen anderen
+Eingang, und das vortrainierte Backbone hat auf vier Stufen gelernt (siehe 8).
+Es ist also kein kostenloses Extra, sondern ein eigenes Experiment.
 
 *Suchbegriffe:* frame stacking in replay buffer, lazy frames, memory-efficient
 replay, quantization

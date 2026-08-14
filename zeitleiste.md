@@ -91,13 +91,24 @@ Begründung siehe `rl_erkenntnisse.md`, Abschnitt 4.
 neueste und setzt den Stapel beim Ziehen zusammen.
 
 ```
-23.2 GB  ->  7.7 GB   bei 500 000 Übergängen, Faktor 3.00
-12.9 s   ->  12.8 s   für 600 Trainingsschritte
+Speicher   23.2 GB    ->  7.7 GB      bei 500 000 Übergängen, Faktor 3.00
+Zeit       49.1 ms    ->  54.9 ms     je Update, batch 512, GPU   (+11.8 %)
 ```
 
-**Wirkung auf die Vergleichbarkeit: keine.** Die gezogenen Batches sind
-bitgleich mit denen des Standard-Buffers, geprüft über 28 Episodengrenzen und
-über den Umlauf des Rings hinweg. Der Umbau ist reine Speicherersparnis.
+**Wirkung auf das Lernen: keine.** Die gezogenen Batches sind bitgleich mit
+denen des Standard-Buffers, geprüft über 28 Episodengrenzen und über den
+Umlauf des Rings hinweg.
+
+**Wirkung auf die Laufzeit: +11.8 %.** Das war ursprünglich falsch
+protokolliert. Die erste Messung lief mit `batch_size=32` und ergab 12.9 gegen
+12.8 s; bei der echten `batch_size=512` tritt der Aufschlag hervor. Er steckt
+vollständig im Ziehen (8.6 → 13.9 ms je Batch), weil der Stapel dort erst
+zusammengesetzt wird. Eine erste Fassung lag bei 26 ms; der Aufbau wurde auf
+einen einzigen Zugriff mit einem Indexfeld der Form (N, n_stack) umgestellt.
+
+Beim Vergleich von Laufzeiten über den 14.08. hinweg ist das zu
+berücksichtigen: gleiche Wanduhrzeit bedeutet ab hier rund 10 % weniger
+Gradientenschritte.
 
 Nachgereicht am selben Tag: an der Naht des Ringpuffers griff die
 Rekonstruktion auf überschriebene Vorgänger zu (2 von 500 000 Indizes). Beide
