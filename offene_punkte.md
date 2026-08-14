@@ -102,28 +102,47 @@ des Modells.
 
 Branch `ppo-vergleich`. Die drei vorhandenen PPO-Läufe stammen vom 26.07.
 und liefen unter `force_drag_v1` ohne Reward-Version — ein Vergleich mit den
-SAC-Läufen unter `measured_v2` ist damit nicht möglich.
-
-Zusätzlich variierten mehr als der Algorithmus:
+SAC-Läufen unter `measured_v2` ist damit nicht möglich. Das ist der
+eigentliche Grund für eine Wiederholung.
 
 ```
-SAC       : lr 5e-5,  bsp True,   1 Env
-PPO 1601  : lr 3e-4,  bsp True,  12 Envs
-PPO 2233  : lr 3e-4,  bsp False, 12 Envs
-PPO 2328  : lr 1e-4,  bsp False, 12 Envs
+SAC 1432  : lr 5e-5,  bsp True,   1 Env,   2.5M Steps, 18h49   best  3828.2
+PPO 1601  : lr 3e-4,  bsp True,  12 Envs,  2.4M Steps           best  -338.8
+PPO 2233  : lr 3e-4,  bsp False, 12 Envs,  2.5M Steps           best  -235.7
+PPO 2328  : lr 1e-4,  bsp False, 12 Envs,   90M Steps, 12h09    best    -3.9
 ```
 
-Ergebnis bisher trotzdem eindeutig — PPO erreichte mit 90 Millionen Steps
-(36-fache Rechenzeit) einen besten Reward von −3.9 gegenüber 3828 bei SAC.
-Ein kontrollierter Lauf bleibt für die Arbeit trotzdem sinnvoll.
+Zum Aufbau: `bsp` (Backbone-Transplantation) und die Step-Zahl waren
+**bewusst gewählt**, keine übersehenen Unterschiede. Ohne BSP schnitt PPO in
+den Vorläufen besser ab, und 90M Steps wurden angesetzt, um ungefähr
+dieselbe Rechenzeit wie SAC mit 2.5M zu erreichen. Der Vergleich bei
+gleichem Zeitbudget ist der sinnvollere Maßstab, weil ein Schritt bei beiden
+Verfahren unterschiedlich teuer ist.
+
+Zwei Einschränkungen bleiben:
+
+* **Die Zeiten waren nicht gleich.** 12h09 gegen 18h49, PPO bekam rund ein
+  Drittel weniger. Für gleiche Rechenzeit wären eher 130–140M Steps nötig.
+* **Die BSP-Aussage stützt sich auf einen Lauf mit vier Auswertungen.**
+  1601 (mit BSP) gegen 2233 (ohne) unterscheiden sich um 100 Reward-Punkte,
+  beide deutlich negativ. Für eine belastbare Aussage müsste ein BSP-Lauf
+  mit vernünftiger Auswertungsdichte dazu — kurz, keine 12 Stunden.
 
 **Vor dem Lauf herzurichten:**
 
+* **`eval_freq` durch `n_envs` teilen.** SB3 zählt `eval_freq` pro Env, aus
+  `50000` bei 12 Envs wird also eine Messung alle 600.000 Schritte — 60-mal
+  seltener als bei SAC mit einem Env. Weil `best_model` nur bei einer
+  Auswertung geschrieben wird, ist dessen Auswahl bei allen bisherigen
+  PPO-Läufen systematisch gröber. Das ist der eine klare methodische Fehler
+  im bisherigen Vergleich.
 * `TOTAL_TIMESTEPS` als eine Variable statt zweier Zahlen (wie in der
   SAC-Zelle bereits umgesetzt)
 * `GAMMA` explizit setzen und loggen — steht bei PPO gar nicht drin
 * Backbone-Automatik statt des festen Juni-Pfads in `10_Vision_PPO_Global`
 * `train_config`-Dict ergänzen, fehlt in einer der beiden PPO-Zellen komplett
+* Laufzeit protokollieren, nicht nur die Step-Zahl — sonst lässt sich der
+  Vergleich bei gleichem Zeitbudget nachträglich nicht belegen
 
 ---
 
