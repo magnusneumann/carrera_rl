@@ -23,6 +23,22 @@ Gemessen bei der echten Konfiguration (batch_size=512, GPU, 600 Updates):
     dieser Buffer       54.9 ms/Update     949.9 MB
                         +11.8 %           Faktor 3.00 weniger
 
+Vorsicht beim Faktor 3: er gilt gegen einen Standard-Buffer mit
+`optimize_memory_usage=False`, der `observations` UND `next_observations`
+anlegt. Die Zelle lief vorher aber mit `optimize_memory_usage=True`, und
+das legt `next_observations` gar nicht erst an. Gegen den TATSAECHLICHEN
+Vorzustand betraegt die Ersparnis nur Faktor 1.5:
+
+    vorher  optimize_memory_usage=True, gestapelt   3 * B * W * H
+    jetzt   Einzelbilder, obs + next_obs            2 * B * W * H
+
+    166x100, 500k:   23.2 GB  ->  15.5 GB
+
+Halbieren liesse sich das noch, indem next_observations nur fuer die
+Episodenenden abgelegt und sonst aus observations[i+1] abgeleitet wird -
+genau der Trick von optimize_memory_usage. Nicht umgesetzt, weil er die
+Behandlung der Endzustaende verkompliziert.
+
 Die Zeit ist also NICHT umsonst. Der Aufschlag steckt allein im Ziehen
 (8.6 -> 13.9 ms je Batch), weil der Stapel dort erst entstehen muss.
 

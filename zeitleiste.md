@@ -205,9 +205,15 @@ Siehe Phase 3. `rl_erkenntnisse.md`, Abschnitt 4.
 neueste und setzt den Stapel beim Ziehen zusammen.
 
 ```
-Speicher   23.2 GB    ->  7.7 GB      bei 500 000 Übergängen, Faktor 3.00
+Speicher   23.2 GB    ->  15.5 GB     bei 500 000 Übergängen, Faktor 1.5
 Zeit       49.1 ms    ->  54.9 ms     je Update, batch 512, GPU   (+11.8 %)
 ```
+
+Zur Speicherzahl: der zunächst genannte Faktor 3.00 war gegen einen
+Standard-Buffer *ohne* `optimize_memory_usage` gemessen. Die alte Zelle lief
+aber **mit** dieser Option, und die legt `next_observations` gar nicht erst an.
+Gegen den tatsächlichen Vorzustand bleibt Faktor 1.5. Siehe
+`rl_erkenntnisse.md`, Abschnitt 9.
 
 **Wirkung auf das Lernen: keine.** Die gezogenen Batches sind bitgleich mit
 denen des Standard-Buffers, geprüft über 28 Episodengrenzen und über den Umlauf

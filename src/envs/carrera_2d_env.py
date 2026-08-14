@@ -16,7 +16,7 @@ from src.utils.virtual_camera import VirtualCamera
 class Carrera2DEnv(gym.Env):
     metadata = {"render_modes": ["human", "hidden"], "render_fps": 30}
 
-    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2"):
+    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100)):
         super().__init__()
 
         self.track_image_path = track_image_path
@@ -25,6 +25,12 @@ class Carrera2DEnv(gym.Env):
         self.render_mode = render_mode # "human" oder "hidden"
         self.camera_view = camera_view # "crop" oder "full"
         self.seed_value = seed # nur zur Protokollierung; gesetzt wird er in reset()
+        # Groesse der Vogelperspektive (Breite, Hoehe). Bestimmt zugleich, ab
+        # welcher Geschwindigkeit sich das Auto ueberhaupt um mehr als einen
+        # Pixel je Frame verschiebt - siehe rl_erkenntnisse.md, Abschnitt 13d:
+        #     Schwelle [m/s] = 30 / (236 * Breite / 830)
+        #     166 px -> 0.64      250 px -> 0.42      300 px -> 0.35
+        self.global_size = tuple(global_size)
         
         # --- Physikalische Parameter (SI-Einheiten) ---
         self.dt = 1/30.0
@@ -114,8 +120,11 @@ class Carrera2DEnv(gym.Env):
             )
         elif self.obs_type == "vision":
             if self.camera_view == "global":
-                self.observation_space = spaces.Box(low=0, high=255, shape=(1, 100, 166), dtype=np.uint8)
-                self.camera = VirtualCamera()
+                # EINE Quelle fuer die Groesse: sie geht in den Beobachtungsraum
+                # und in die Kamera. Vorher stand sie an beiden Stellen getrennt.
+                gw, gh = self.global_size
+                self.observation_space = spaces.Box(low=0, high=255, shape=(1, gh, gw), dtype=np.uint8)
+                self.camera = VirtualCamera(global_size=self.global_size)
             elif self.camera_view == "crop":
                 self.observation_space = spaces.Box(low=0, high=255, shape=(1, 84, 84), dtype=np.uint8)
                 self.camera = VirtualCamera(crop_size=(150, 150), target_size=(84, 84))

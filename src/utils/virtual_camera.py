@@ -3,11 +3,15 @@ import numpy as np
 import pygame
 
 class VirtualCamera:
-    def __init__(self, crop_size=(150, 150), target_size=(84, 84)):
+    def __init__(self, crop_size=(150, 150), target_size=(84, 84),
+                 global_size=(166, 100)):
         self.crop_width, self.crop_height = crop_size
         self.target_width, self.target_height = target_size
-        self.target_width_global = 166
-        self.target_height_global = 100
+        # Groesse der Vogelperspektive. War frueher hier UND im
+        # Beobachtungsraum der Umgebung hartkodiert - liefen die beiden
+        # auseinander, brach das Training mit einem Formfehler ab. Jetzt gibt
+        # die Umgebung den Wert vor und uebergibt ihn hierher.
+        self.target_width_global, self.target_height_global = global_size
         self.levels = 4 # Anzahl der Graustufen, damit es nicht 255 Grautöne gibt
 
     def get_car_centric_observation(self, screen, cx, cy, theta):

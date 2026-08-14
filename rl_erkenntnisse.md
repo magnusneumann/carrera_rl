@@ -344,11 +344,29 @@ SB3 legt die **fertig gestapelte** Beobachtung im Buffer ab, weil
 zwei ihrer drei Bilder — jedes Einzelbild liegt also rund dreimal im Speicher.
 
 ```
-                              gestapelt    einzeln gespeichert
-166×100, n_stack=3              23.2 GB              7.7 GB
-250×150, n_stack=3              52.4 GB             17.5 GB
-300×180, n_stack=3              75.4 GB             25.1 GB
+                          gestapelt   einzeln   davon real (obs + next_obs)
+166×100, n_stack=3          23.2 GB    7.7 GB              15.5 GB
+250×150, n_stack=3          52.4 GB   17.5 GB              34.9 GB
+300×180, n_stack=3          75.4 GB   25.1 GB              50.3 GB
 ```
+
+**Die mittlere Spalte ist die theoretische Ersparnis, die rechte die
+erreichte.** Der Unterschied ist eine Falle, in die dieses Projekt getappt ist:
+SB3 legt normalerweise `observations` **und** `next_observations` an, also
+zweimal. Nur mit `optimize_memory_usage=True` entfällt das zweite Feld, weil
+die Folgebeobachtung aus `observations[i+1]` abgeleitet wird.
+
+Die Läufe bis Juli liefen mit `optimize_memory_usage=True` und hatten damit
+schon nur ein Feld — dafür gestapelt. Gegen diesen tatsächlichen Vorzustand
+ist die Ersparnis **Faktor 1.5**, nicht 3.0:
+
+```
+vorher   3 · B · W · H     (gestapelt, ein Feld)
+jetzt    2 · B · W · H     (einzeln, zwei Felder)
+```
+
+Die vollen Faktor 3 gelten nur gegen einen Standard-Buffer *ohne*
+Speicheroptimierung. Wer eine Ersparnis angibt, muss also dazusagen, wogegen.
 
 Umsetzung erfordert einen eigenen Replay-Buffer, der beim Speichern nur das
 neueste Bild ablegt und beim Ziehen die Stapel aus Nachbarindizes zusammensetzt.
