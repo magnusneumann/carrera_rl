@@ -540,8 +540,32 @@ Was daran anschließend nicht mehr passte:
 | Framestapel | Bewegung unter 0.64 m/s ist subpixelig |
 | `total_timesteps` | Lidar-Experte brauchte 500k statt 80k Steps |
 | Standstill-Strafe | Anfahren dauert 12 statt 1 Frame |
-| fahrzeugfeste Ansicht | Bremsweg länger als die Sichtweite |
+| fahrzeugfeste Ansicht | Bremsweg länger als die Sichtweite (siehe unten) |
 | `max_steer_change` | 1.0 hieß Anschlag zu Anschlag in 67 ms |
+
+### Die fahrzeugfeste Ansicht wurde dadurch unbrauchbar
+
+`camera_view="crop"` schneidet 150×150 px um das Auto und skaliert auf 84×84.
+Das Auto wäre darin **12.9 × 5.0 px** statt 4.6 × 1.8 — achtmal so viele Pixel,
+und die Subpixelgrenze sänke von 0.64 auf 0.23 m/s.
+
+Der Ausschnitt zeigt aber nur 0.64 m Kantenlänge, also 0.32 m nach vorn — 8 %
+einer Runde. Gegen den gemessenen Bremsweg:
+
+```
+aus 0.5 m/s: 0.38 m Bremsweg   sichtbar 0.32 m   zu kurz
+aus 0.8 m/s: 0.81 m            sichtbar 0.32 m   zu kurz
+aus 1.2 m/s: 1.52 m            sichtbar 0.32 m   zu kurz
+aus 1.6 m/s: 2.33 m            sichtbar 0.32 m   zu kurz
+```
+
+Der Agent sähe die Wand grundsätzlich erst, wenn Bremsen nicht mehr reicht —
+bei jedem Tempo. Mit dem alten Auto (Bremsweg 6 cm bei 1.5 m/s) war die Ansicht
+brauchbar, deshalb funktionierte sie im Juni.
+
+Das Grundproblem ist strukturell: mehr Pixel fürs Auto bedeuten bei einem
+mitgeführten Ausschnitt zwangsläufig weniger Sichtweite. Beides zugleich geht
+nur über die Auflösung.
 
 **Merksatz:** Wer die Fahrzeugdynamik ändert, muss jede Einstellung prüfen, die
 auf Zeitskalen beruht — Diskontfaktor, Episodenlänge, Framestapel, Zeitlimits,
@@ -549,6 +573,133 @@ Strafschwellen.
 
 *Suchbegriffe:* system identification, sim-to-real gap, domain adaptation,
 time discretization in RL, action repeat / frame skip
+
+---
+
+## 12b. Die Videomessung: was sie belegt und was nicht
+
+Das Fahrzeugmodell stammt aus Videos (30 fps, Kalibrierung 14 px = 35 mm).
+Drei Prüfungen entscheiden darüber, wie belastbar es ist.
+
+### Perspektive ausgeschlossen
+
+Wenn die Kamera schräg auf die Strecke schaut, ändert sich der Maßstab über die
+Bildhöhe — dieselbe reale Bewegung erzeugt unten mehr Pixel als oben. Das würde
+eine Beschleunigung **vortäuschen**, die es nicht gibt.
+
+Prüfbar, weil das Auto eine feste Länge hat. Über die volle Bildhöhe gemessen:
+
+```
+y    0-150 px : 44.0 px Fahrzeuglänge   (Anschnitt am oberen Rand)
+y  150-300 px : 49.3 px
+y  450-600 px : 49.2 px
+y  900-1100 px: 49.4 px
+```
+
+Konstant. Die Kamera schaut senkrecht, `PX_PER_M = 400` gilt über das ganze
+Bild. Ohne diese Prüfung wäre der gemessene Beschleunigungsverlauf wertlos
+gewesen.
+
+### Ein Messvideo ist unbrauchbar
+
+Dieselbe Prüfung deckte auf, dass in `Beschleunigung mit Speed V2` etwas
+anderes mit im Blob steckt:
+
+```
+y    0-200 px : 134 px Länge
+y  200-400 px :  50 px
+y  600-800 px : 297 px
+y  800-1100 px: 691 px      ← ein 48-px-Auto kann das nicht sein
+```
+
+Der Median wandert damit weg von der Fahrzeugmitte. Aus diesem Video stammt der
+Wert **a = 0.313 m/s²**, der als zweiter Stützpunkt in die Antriebskennlinie
+eingeht. Er ist mit Vorsicht zu behandeln — die 44 % Abweichung zum anderen
+Durchfahrt-Video (0.488) könnte daher rühren.
+
+Ein Längenfilter (Blob verwerfen, wenn er stark vom Median abweicht) wurde
+implementiert und wieder zurückgenommen, um die bereits ausgewerteten Zahlen
+nicht zu verändern. Für eine Neuauswertung wäre er einzubauen.
+
+### v_max ist nicht bestimmbar
+
+Das physikalisch richtige Modell `dv/dt = (v_inf − v)/T` wurde gefittet und
+mittels Profil-Test geprüft, ob `v_inf` durch die Daten überhaupt festgelegt
+ist:
+
+```
+ v_inf   tau_fit   RMSE(cm)        Messfenster: 3.57 s
+  1.40     3.31      4.07
+  1.80     4.69      3.04
+  3.00     8.79      1.83
+  6.00    18.97      1.10
+```
+
+Der Fehler sinkt **monoton** — es gibt kein Minimum. Die Daten bevorzugen den
+Grenzfall `tau → ∞`, also konstante Beschleunigung. Das Auto erreicht im
+Bildausschnitt nie die Sättigung.
+
+**Konsequenz:** `v_max = 1.90 m/s` im Modell ist eine Annahme, keine Messung.
+Belegt ist nur, dass 1.844 m/s erreicht wurden. Ebenso ist der Rollwiderstand
+`R0 = 0.05 m/s²` geschätzt — es gibt kein Ausroll-Video. Beide Werte sind im
+Code als Annahme gekennzeichnet.
+
+Sauber gemessen sind dagegen: die Bremsverzögerung (`a(v) = 0.217 + 0.336·v`,
+trifft beide Bremsversuche exakt, RMSE 0.4–0.6 cm über 2.5 m Fahrstrecke) und
+der haftungsbegrenzte Ast der Beschleunigung.
+
+### Methodische Punkte der Auswertung selbst
+
+Vier Fehler, die erst nach mehreren Anläufen gefunden wurden:
+
+1. **Skalierungsfehler im Ableitungsfilter.** Das Resampling-Gitter hatte einen
+   anderen Abstand als das an den Savitzky-Golay-Filter übergebene `delta` —
+   alle Geschwindigkeiten lagen 2–4 % zu hoch.
+2. **Angeschnittene Frames.** Solange das Auto am Bildrand hängt, *wächst* der
+   Blob statt sich zu bewegen; sein Median wandert halb so schnell wie das
+   Fahrzeug. Eine Pixelzahl-Heuristik lässt genau die Übergangsframes durch —
+   nötig ist die geometrische Prüfung, ob Ober- **und** Unterkante im Bild
+   liegen.
+3. **Kennwerte aus Positionsfits, nicht aus Ableitungen.** Die Suche nach dem
+   Maximum eines verrauschten Geschwindigkeitssignals ist nach oben verzerrt,
+   und der Fehler wandert direkt in die Bremsverzögerung.
+4. **Der Zeitnullpunkt beim Anfahren** muss über die Blob-Unterkante bestimmt
+   werden, nicht über den Median — die Unterkante bewegt sich mit der echten
+   Fahrzeuggeschwindigkeit, auch wenn oben abgeschnitten. RMSE dadurch von
+   2.4 cm auf 0.5 cm.
+
+*Suchbegriffe:* system identification, optical flow, Savitzky-Golay filter,
+parameter identifiability, profile likelihood
+
+---
+
+## 12c. Werkzeug-Fallen, die Messungen verfälschen
+
+### `DummyVecEnv` setzt automatisch zurück
+
+Endet eine Episode, ruft `DummyVecEnv` sofort `reset()` auf — **bevor** die
+eigene Schleife `render()` erreicht. Der Crash-Frame wird nie gezeichnet; was
+man sieht, ist bereits der Startzustand.
+
+Das führte hier zu einer völlig falschen Diagnose: das Auto schien einfach
+stehenzubleiben und neu zu starten. Tatsächlich fuhr es mit 1.19 m/s in die
+Außenwand und bremste die letzten sieben Frames vergeblich.
+
+Wer das Verhalten am Episodenende beobachten will, braucht entweder die rohe
+Umgebung ohne Vec-Wrapper oder muss den Zustand vor dem Schritt zwischenspeichern.
+
+### Renderpfad und Trainingspfad müssen übereinstimmen
+
+Die Beobachtungszelle nutzte `render_mode="human"`, trainiert wurde mit
+`"hidden"`. Der Unterschied beträgt 0.05 % der Pixel — genug, um das Verhalten
+vollständig zu ändern (siehe Abschnitt 7). Man sieht dann nicht den Agenten,
+den man trainiert hat.
+
+### `deterministic=False` bei der Beobachtung
+
+Die Beobachtungszelle zog aus der Policy-Verteilung, die Auswertung im Training
+nutzt `deterministic=True`. Kein Fehler, aber die beiden Bilder sind nicht
+dieselben.
 
 ---
 

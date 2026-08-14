@@ -121,8 +121,21 @@ Verfahren unterschiedlich teuer ist.
 
 Zwei Einschränkungen bleiben:
 
-* **Die Zeiten waren nicht gleich.** 12h09 gegen 18h49, PPO bekam rund ein
-  Drittel weniger. Für gleiche Rechenzeit wären eher 130–140M Steps nötig.
+* **Die Zeiten waren vergleichbar** — sofern man gegen `2139` rechnet und nicht
+  gegen `1432`:
+
+  ```
+  2139  SAC  1.5M Steps  11h10   best  2427.5
+  2328  PPO   90M Steps  12h09   best    -3.9
+  ```
+
+  PPO hatte also sogar knapp eine Stunde mehr. Erschwerend kommt hinzu, dass
+  SAC **11 % seiner Schritte für die Auswertung** verbrauchte (150 Messungen ×
+  5 Episoden = 167.905 Frames), PPO dagegen nur 4.090 Frames. Von den 11h10
+  ging bei SAC ein spürbarer Teil nicht ins Training.
+
+  Der Vergleich bei gleichem Zeitbudget fällt damit eher noch klarer zugunsten
+  von SAC aus als zunächst angenommen.
 * **Die BSP-Aussage stützt sich auf einen Lauf mit vier Auswertungen.**
   1601 (mit BSP) gegen 2233 (ohne) unterscheiden sich um 100 Reward-Punkte,
   beide deutlich negativ. Für eine belastbare Aussage müsste ein BSP-Lauf
@@ -148,13 +161,22 @@ Zwei Einschränkungen bleiben:
 
 ## 4. Kleinere offene Punkte
 
-### 4.1 `bsp` klären
+### 4.1 `bsp` — geklärt, kein offener Punkt mehr
 
-Wird in jeder `train_config.json` geloggt, ist aber **nirgends im Code
-auffindbar**. Entweder er spielt eine Rolle und gehört beim Vergleich
-kontrolliert, oder er ist ein Überbleibsel und gehört entfernt — wie
-`best_lap_bonus` und `slow_lap_penalty`, die ebenfalls geloggt, aber nie
-gelesen wurden.
+`bsp` steuert die **Backbone-Transplantation**: ob die drei vortrainierten
+Faltungsschichten in den Agenten kopiert werden. Der Laufname
+`11_Vision_PPO_NoBSP` sagt es wörtlich.
+
+```
+Zelle 56  SAC   Transplantation: ja
+Zelle 58  SAC   Transplantation: ja
+Zelle 60  PPO   Transplantation: ja      -> 10_Vision_PPO_Global
+Zelle 61  PPO   Transplantation: nein    -> 11_Vision_PPO_NoBSP
+```
+
+Damit ist es eine kontrollierte Versuchsvariable, kein Überbleibsel — anders
+als `best_lap_bonus` und `slow_lap_penalty`, die geloggt, aber nie gelesen
+wurden.
 
 ### 4.2 `n_envs` bei Lauf `20260612_2347`
 
