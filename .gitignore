@@ -28,7 +28,18 @@ __pycache__/
 Archive/alte_Logs/
 Archive/alte_Modelle/
 tensorboard_logs/
-models/09_Vision_SAC_Finetuned_20260610_0957.zip
-models/09_Vision_SAC_Finetuned_20260610_1045.zip
-models/09_Vision_SAC_Finetuned_20260610_2300.zip
-models/best_model.zip
+
+# Trainierte Modelle: rund 3.7 GB, je 145-290 MB pro Lauf. Aus Code und
+# Konfiguration reproduzierbar. Die auswertbare Information steckt in
+# train_config.json und evaluations.npz, die beide versioniert bleiben.
+*.zip
+*.pth
+
+# Datensätze für das CNN-Vortraining, je 5-12 MB, aus dem Lidar-Experten
+# jederzeit neu erzeugbar.
+data/lidar_agent_dataset_*.npz
+
+# Sicherungskopien des Notebooks
+*.bak
+*.bak[0-9]
+*.bak[0-9][0-9]
