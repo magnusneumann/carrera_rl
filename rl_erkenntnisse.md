@@ -5,7 +5,7 @@ Projekt als Beleg. Gedacht als **Ausgangspunkt für eigene Recherche**, nicht
 zum direkten Übernehmen — zu jedem Abschnitt stehen deshalb die Fachbegriffe
 dabei, unter denen sich Literatur finden lässt.
 
-Stand 01.08.2026.
+Stand 14.08.2026.
 
 ---
 
@@ -734,15 +734,208 @@ MLflow, Weights & Biases, configuration management, hydra
 
 ---
 
+## 13b. Episodenende: ein Zeitlimit ist kein Endzustand
+
+Der theoretisch sauberste Punkt dieses Projekts — und der, der am längsten
+unbemerkt falsch war.
+
+### Zwei Arten zu enden
+
+Eine Episode kann aus zwei grundverschiedenen Gründen aufhören:
+
+| | was passiert | Wert danach |
+|---|---|---|
+| **terminated** | Crash. Der Zustand ist absorbierend. | tatsächlich 0 |
+| **truncated** | Frame 2000 erreicht. Wir hören auf zu schauen. | *nicht* 0 — es ginge weiter |
+
+Für das Lernziel des Critics macht das den Unterschied zwischen
+
+```
+terminated:   y = r
+truncated:    y = r + gamma · Q(s', a')
+```
+
+Beim echten Ende ist das Abschneiden richtig. Beim Zeitlimit ist es eine
+Behauptung über die Welt, die schlicht falsch ist: das Auto wäre
+weitergefahren, wir haben nur die Aufzeichnung beendet. Das Zeitlimit ist eine
+Eigenschaft **unseres Versuchsaufbaus**, keine Eigenschaft der Aufgabe.
+
+### Wie es in SB3 schiefging
+
+SB3 unterscheidet beides über `handle_timeout_termination`. Der Buffer merkt
+sich dann in `timeouts` getrennt mit und rechnet beim Ziehen
+
+```python
+dones * (1 - timeouts)
+```
+
+Nachgewiesen:
+
+```
+handle_timeout_termination=True    Crash done=1,  Zeitlimit done=0
+handle_timeout_termination=False   Crash done=1,  Zeitlimit done=1
+```
+
+In diesem Projekt stand es auf `False` — nicht absichtlich, sondern weil
+`optimize_memory_usage=True` es erzwingt. Beide Flags sind in SB3 unvereinbar,
+und die Speicheroptimierung war gewollt. Der Lernfehler kam als
+**stillschweigende Nebenwirkung einer Speicherentscheidung** herein. Es gibt
+keine Warnung.
+
+### Warum der Schaden nicht lokal bleibt
+
+Naheliegender Einwand: betroffen sind doch nur die letzten Frames einer
+Episode, bei gamma=0.99 also die letzten ein- bis dreihundert von 2000. Das
+wäre verkraftbar.
+
+Der Einwand greift nicht, und der Grund ist die Beobachtung selbst:
+
+> **Der Agent sieht keine Uhr.** Seine Beobachtung ist ein Kamerabild. Weder
+> Framezähler noch verbleibende Zeit sind darin enthalten.
+
+Für einen Agenten, der saubere Runden fährt, sieht Frame 1990 **identisch aus**
+wie Frame 300 — dieselbe Stelle der Strecke, dieselbe Lage des Autos, dasselbe
+Bild. Der Critic bekommt für denselben Eingang widersprüchliche Ziele:
+
+```
+bei Frame  300  →  y = r + gamma · Q(s')     "viel wert, es geht weiter"
+bei Frame 1990  →  y = r                     "wertlos, hier endet die Welt"
+```
+
+Er kann die Fälle nicht trennen und mittelt sie. Der falsche Nullwert klebt
+also nicht am Episodenende, sondern **verschmiert über alle Zustände, die gut
+aussehen**. Aus einem lokalen Randfehler wird eine globale Verzerrung der
+Wertfunktion.
+
+In der Literatur ist das der Grund, warum bei endlichen Zeitlimits entweder
+korrekt gebootstrappt oder die verbleibende Zeit in die Beobachtung
+aufgenommen wird (*time-awareness*). Beides fehlte hier.
+
+### Warum es ausgerechnet die guten Läufe trifft
+
+```
+schlechter Agent  →  crasht früh   →  erreicht 2000 nie     →  kein Schaden
+guter Agent       →  fährt durch   →  erreicht 2000 immer   →  volle Wirkung
+```
+
+Der Schaden ist **positiv mit der Leistung korreliert**. Er schaltet sich genau
+in dem Moment ein, in dem der Agent aufhört zu crashen, und trifft ausgerechnet
+die Zustände des gelungenen Fahrens.
+
+Lauf `1432` hatte auf seinem Höhepunkt eine mittlere Episodenlänge von **exakt
+2000** — jede Episode lief also ins Limit. Danach fiel er von 3828 auf −1421.
+
+**Status: begründete Hypothese, nicht bewiesen.** Der Mechanismus ist
+zwingend, seine Größenordnung nicht gemessen. SAC hat weitere bekannte
+Zusammenbruchsarten (davonlaufende Q-Werte, kippende Entropie-Regelung), die
+dasselbe Muster erzeugen können. Der nächste Referenzlauf prüft es.
+
+### Ist das Limit überhaupt sinnvoll gewählt?
+
+Die Zeile stammt aus dem ersten funktionierenden PPO-Commit (18.05.2026), ohne
+Kommentar, nie überarbeitet — und damit aus der Zeit **vor** der
+Physikkorrektur, also für ein rund 20-fach zu schnelles Fahrzeug.
+
+Nachgerechnet unter `measured_v2`:
+
+```
+Rundenlänge          7.66 m   (1807 px Mittellinie bei 236 px/m)
+Zeitlimit 2000 F  =  66.7 s   bei 30 fps
+```
+
+| ⌀ Tempo | Frames/Runde | Runden im Limit |
+|---|---|---|
+| 0.20 m/s | 1148 | 1.74 |
+| 0.60 m/s | 383 | 5.22 |
+| 1.00 m/s | 230 | 8.71 |
+| 1.90 m/s (v_max) | 121 | 16.54 |
+
+Für **eine** Runde genügt ein Schnitt von 0.115 m/s. Vollgas aus dem Stand
+erreicht 1.40 m/s nach 119 Frames und legt in 2000 Frames 121 m zurück, also
+15.8 Runden.
+
+Das Limit ist damit so großzügig, dass **jeder nicht-crashende Agent es
+zwangsläufig erreicht** — was die obige Wirkung von einem Randfall zum
+Regelfall macht. Es wurde bewusst nicht geändert: mit korrekter
+Timeout-Behandlung ist die Episodenlänge harmlos, und eine Änderung wäre eine
+zusätzliche Variable.
+
+*Suchbegriffe:* time limits in reinforcement learning, partial-episode
+bootstrapping, time-aware MDP, episodic vs continuing tasks, absorbing state,
+Pardo et al. 2018
+
+---
+
+## 13c. Ringpuffer: die Naht zwischen Ältestem und Neuestem
+
+Aufgetreten beim Umbau aus Abschnitt 9 (Einzelbilder statt fertiger Stapel).
+Ein lehrreicher Fehler, weil er erst durch eine Optimierung entstand.
+
+### Wodurch die Abhängigkeit entsteht
+
+Der Standard-Buffer legt bei jedem Eintrag den **fertigen Framestapel** ab.
+Jeder Eintrag ist damit für sich vollständig; was daneben liegt, ist
+gleichgültig. Überschreiben alter Einträge ist deshalb völlig unproblematisch —
+es ist die normale Arbeitsweise eines Ringpuffers.
+
+Die Speicherersparnis entsteht dadurch, nur **ein** Bild abzulegen und den
+Stapel beim Ziehen aus den Nachbarindizes zusammenzusetzen. Genau damit wird
+jeder Eintrag aber **abhängig von seinen Vorgängern** — und diese Abhängigkeit
+bricht an der Stelle, an der der Ring umläuft.
+
+```
+Ring der Größe 200, 350 Einträge geschrieben:
+
+Platz     ...  147   148   149  │  150   151   152  ...
+schrieb   ...  #347  #348  #349 │  #150  #151  #152 ...
+                                 ↑ Naht
+
+Platz 150 (ältester Eintrag) greift für seinen Stapel nach links
+auf Platz 149 — und erhält Schreibvorgang #349 statt #149.
+200 Schritte in der Zukunft, fremde Episode.
+```
+
+Ungültig sind genau `n_stack-1` Indizes ab `pos`.
+
+### Warum SB3 hier nicht schützt
+
+SB3 schließt `self.pos` beim Ziehen aus — aber **nur** bei
+`optimize_memory_usage=True`. Ohne das Flag landet die Auswahl in
+`BaseBuffer.sample` und zieht gleichverteilt über alle Indizes. Wer aus dem
+Standardpfad heraus eine Rekonstruktion baut, verliert diesen Schutz, ohne dass
+sich etwas an der Oberfläche ändert.
+
+### Größenordnung und Konsequenz
+
+2 von 500 000 Indizes, also 0.0004 % der gezogenen Übergänge. Praktisch
+folgenlos — der Punkt ist nicht der Schaden, sondern die **Testlücke**:
+
+> Beide ursprünglichen Tests liefen mit halbleerem Buffer (150 von 200 bzw.
+> 600 von 20 000). Der Ring lief nie um, der fehlerhafte Pfad wurde nie
+> ausgeführt, und beide Tests meldeten bitgleiche Ergebnisse.
+
+Ein Test eines Ringpuffers, der den Umlauf nicht erzwingt, prüft die Hälfte der
+Implementierung nicht. Der Test wurde entsprechend erweitert (350 Übergänge in
+Größe 200, 1.75-facher Umlauf) und prüft dreierlei: dass die übrigen Indizes
+weiterhin exakt stimmen, dass die ausgeschlossenen tatsächlich falsch *wären*,
+und dass `sample()` sie nicht mehr zieht.
+
+*Suchbegriffe:* circular buffer boundary, frame stacking in replay buffers,
+lazy frames, Dopamine OutOfGraphReplayBuffer, off-by-one in experience replay
+
+---
+
 ## 14. Offene theoretische Fragen aus diesem Projekt
 
 Punkte, die sich lohnen würden, aber nicht geklärt sind:
 
 1. **Warum bricht jeder SAC-Lauf nach seinem Höhepunkt ein?** Kandidaten:
-   Entropie-Koeffizient läuft weg, Critic-Überschätzung, zu kleiner Buffer
-   relativ zur Lauflänge, Verteilungsdrift.
+   falsch behandeltes Zeitlimit (siehe 13b — seit 14.08.2026 korrigiert, damit
+   im nächsten Lauf prüfbar), Entropie-Koeffizient läuft weg,
+   Critic-Überschätzung, zu kleiner Buffer relativ zur Lauflänge,
+   Verteilungsdrift.
    *Suchbegriffe:* policy collapse, Q-value overestimation, entropy tuning in
-   SAC, primacy bias, plasticity loss
+   SAC, primacy bias, plasticity loss, time limits in RL
 
 2. **Warum sind bei zwei Läufen die deterministischen Eval-Episoden nicht
    identisch** (1–2 % statt 100 %)? Vermutung: die Nullstellen-Klemme im neuen
@@ -760,6 +953,21 @@ Punkte, die sich lohnen würden, aber nicht geklärt sind:
 ---
 
 ## Referenzwerte dieses Projekts
+
+### Strecke und Fahrzeug
+
+| Größe | Wert | Herkunft |
+|---|---|---|
+| Rundenlänge (Mittellinie) | 7.66 m | 1807 px aus den Spline-Rändern |
+| Außenrand / Innenrand | 8.55 / 6.76 m | `outer_raw_spline.npy`, `inner_raw_spline.npy` |
+| Maßstab | 236 px/m | `pixels_per_meter` |
+| Zeitschritt | 1/30 s | `dt` |
+| Episodenlimit | 2000 Frames = 66.7 s | `carrera_2d_env.py:402` |
+| v_max | 1.90 m/s | Modellannahme, nicht messbar (13b, 12b) |
+| Beschleunigung 0 → 1.40 m/s | 119 Frames (3.97 s) | `measured_v2` |
+| Bremsverzögerung | 0.68 m/s² | Videomessung |
+
+### Ergebnisse
 
 Alle unter `measured_v2` und Reward `v3_rundenzeit`:
 

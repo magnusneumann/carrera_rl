@@ -83,7 +83,49 @@ bei 5e-5.
 
 ### 01.08. — `gamma` zurück auf 0.99
 
-Der aktuelle Codestand. **Entspricht keinem der bisherigen Läufe.**
+Begründung siehe `rl_erkenntnisse.md`, Abschnitt 4.
+
+### 14.08. — Replay-Buffer speichert Einzelbilder (`4f964ce`, `7a4a616`)
+
+`VecFrameStack` legte jedes Bild dreifach ab. Der neue Buffer speichert nur das
+neueste und setzt den Stapel beim Ziehen zusammen.
+
+```
+23.2 GB  ->  7.7 GB   bei 500 000 Übergängen, Faktor 3.00
+12.9 s   ->  12.8 s   für 600 Trainingsschritte
+```
+
+**Wirkung auf die Vergleichbarkeit: keine.** Die gezogenen Batches sind
+bitgleich mit denen des Standard-Buffers, geprüft über 28 Episodengrenzen und
+über den Umlauf des Rings hinweg. Der Umbau ist reine Speicherersparnis.
+
+Nachgereicht am selben Tag: an der Naht des Ringpuffers griff die
+Rekonstruktion auf überschriebene Vorgänger zu (2 von 500 000 Indizes). Beide
+ursprünglichen Tests liefen mit halbleerem Buffer und konnten das nicht sehen.
+Siehe `rl_erkenntnisse.md`, Abschnitt 13c.
+
+### 14.08. — Zeitlimit wird nicht mehr als Endzustand gelernt (`4f964ce`)
+
+`handle_timeout_termination` stand auf `False`, erzwungen durch
+`optimize_memory_usage=True`. Damit lernte der Critic, dass bei Frame 2000 die
+Welt aufhört und der Zustand wertlos ist — obwohl das Auto dort weiterfuhr.
+
+**Wirkung: trennt scharf.** Das ist die erste Änderung seit dem 01.08., die das
+Lernverhalten selbst betrifft. Betroffen sind ausschließlich Läufe, deren
+Episoden das Limit erreichten — also gerade die guten. `1432` hatte auf dem
+Höhepunkt eine Episodenlänge von exakt 2000.
+
+Ob das die wiederkehrenden Einbrüche nach dem Höhepunkt erklärt, ist **offen**.
+Der Mechanismus ist in `rl_erkenntnisse.md`, Abschnitt 13b hergeleitet; der
+Referenzlauf (Schritt 0 unten) prüft ihn.
+
+Das Limit von 2000 Frames selbst wurde bewusst **nicht** angefasst. Es stammt
+aus dem ersten PPO-Commit vom 18.05. und damit aus der Zeit vor der
+Physikkorrektur, ist unter `measured_v2` aber weiterhin großzügig: eine Runde
+misst 7.66 m, bei Vollgas sind 15.8 Runden im Limit möglich, für eine einzelne
+Runde genügen 0.115 m/s im Schnitt.
+
+**Aktueller Codestand. Entspricht keinem der bisherigen Läufe.**
 
 ---
 
