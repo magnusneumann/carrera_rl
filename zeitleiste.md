@@ -120,9 +120,33 @@ Einschränkung: alle Streuungen sind 0, weil Startzustand und Auswertung
 deterministisch sind. Die Episoden sind identisch — für belastbare Aussagen
 bräuchte es zufällige Startpositionen.
 
-## Phase 5 — aktueller Stand mit Kamera (01.08. und 14.08.)
+## Phase 5 — höhere Auflösung (14.08., vorbereitet)
 
-**Noch kein Lauf.** Gegenüber `2331` haben sich drei Dinge geändert:
+**Noch kein Lauf.** Geplant mit 250×150 statt 166×100, gemessene Eckdaten:
+
+```
+Wahrnehmungsschwelle   0.64  ->  0.42 m/s
+Rechenzeit je Update   55.4  ->  104.6 ms      (+89 %)
+Buffer 500k            15.5  ->  34.9 GB
+Echte Rate mit Rendern        19.5 Steps/s  ->  21.4 h fuer 1.5 M
+Auswertungen (150 x 5 Episoden)             ->  0.03 bis 0.24 h, vernachlaessigbar
+```
+
+Vorbereitung geprüft: Datensatz `20260814_193640` mit 12000 Bildern à
+(3, 150, 250), Backbone `20260814_1940` mit `linear.0 (256, 25920)` — der Wert
+passt zu 150×250 und belegt, dass die dynamische Berechnung greift.
+Nachtrainiert erreicht das Backbone MSE 0.00366 auf dem Datensatz und trifft
+alle drei Aktionen in Mittelwert und Streuung.
+
+Erwartung, offen formuliert: bei 166×100 zeigte sich vor 2.78 M Schritten
+nichts. Wenn die Auflösung wirkt, sollte die Bewegung früher einsetzen. Bleibt
+`rollout/ep_rew_mean` nach 1.5 M flach, ist das **kein** Beweis gegen die
+Auflösung, sondern nur einer dafür, dass 1.5 M nicht reichen — ein positives
+Ergebnis wiegt hier deutlich schwerer als ein negatives.
+
+## Phase 6 — weitere offene Änderungen
+
+Gegenüber `2331` haben sich außerdem drei Dinge geändert:
 
 ```
 gamma                          0.999  ->  0.99      (zurückgenommen)
