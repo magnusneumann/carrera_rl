@@ -16,7 +16,7 @@ from src.utils.virtual_camera import VirtualCamera
 class Carrera2DEnv(gym.Env):
     metadata = {"render_modes": ["human", "hidden"], "render_fps": 30}
 
-    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100)):
+    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100), max_steer_change=0.5):
         super().__init__()
 
         self.track_image_path = track_image_path
@@ -31,6 +31,11 @@ class Carrera2DEnv(gym.Env):
         #     Schwelle [m/s] = 30 / (236 * Breite / 830)
         #     166 px -> 0.64      250 px -> 0.42      300 px -> 0.35
         self.global_size = tuple(global_size)
+        # Wie weit der Lenkeinschlag je Frame springen darf. Am 28.07. von 1.0
+        # auf 0.5 gesetzt, zusammen mit dem gemessenen Fahrzeugmodell. Als
+        # Parameter, damit sich aeltere Laeufe originalgetreu nachfahren
+        # lassen - alles bis 1432 lief mit 1.0.
+        self._max_steer_change_arg = max_steer_change
         
         # --- Physikalische Parameter (SI-Einheiten) ---
         self.dt = 1/30.0
@@ -40,7 +45,7 @@ class Carrera2DEnv(gym.Env):
         # Anschlag zu Anschlag beträgt 2.0, bei 0.5 also 4 Frames = 133 ms.
         # Vorher 1.0, was 67 ms entsprach - schneller als ein echter Servo.
         # Noch nicht am Auto gemessen, 0.5 ist eine plausible Schätzung.
-        self.max_steer_change = 0.5
+        self.max_steer_change = self._max_steer_change_arg
         self.mu = 0.3  # Reibwert für Grip-Limit (Untersteuern)
 
         # --- Längsdynamik ---
