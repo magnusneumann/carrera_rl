@@ -9,8 +9,11 @@ Kurzfassung: erstaunlich wenige.
 
 Nur Läufe mit **demselben grundlegenden Verfahren**: ein Agent, der aus drei
 gestapelten Graustufenbildern der Vogelperspektive fährt (`n_stack=3`,
-`camera_view=global`, vier Graustufen, 166×100). Der **Hauptstrang ist SAC**,
-PPO läuft als **Nebenstrang** darunter.
+`camera_view=global`, vier Graustufen). Der **Hauptstrang ist SAC**, PPO läuft
+als **Nebenstrang** darunter.
+
+Die Auflösung ist seit dem 15.08. nicht mehr überall gleich — bis `2331`
+166×100, ab `2230` 250×150. Sie steht deshalb bei jedem Lauf dabei.
 
 Nicht enthalten sind die frühen Architekturversuche aus dem Juni — Einzelbild,
 fahrzeugfeste Ansicht, Hybrid aus Bild und Lidar (`04_` bis `08_`). Die sind
@@ -25,8 +28,9 @@ dieses Projekts ist (siehe „Das wiederkehrende Muster"). `eplen@best` ist die
 Episodenlänge zum Zeitpunkt der besten Auswertung — bei 2000 lief die Episode
 ins Zeitlimit.
 
-Durchsatz zur Umrechnung: rund **135 000 Steps/h** für SAC mit Kamera, also
-1.5 M ≈ 11 h, 2.5 M ≈ 19 h, 5 M ≈ 33 h.
+Durchsatz zur Umrechnung, gemessen:
+
+
 
 ---
 
@@ -120,29 +124,84 @@ Einschränkung: alle Streuungen sind 0, weil Startzustand und Auswertung
 deterministisch sind. Die Episoden sind identisch — für belastbare Aussagen
 bräuchte es zufällige Startpositionen.
 
-## Phase 5 — höhere Auflösung (14.08., vorbereitet)
+## Phase 5 — höhere Auflösung (15.–16.08.)
 
-**Noch kein Lauf.** Geplant mit 250×150 statt 166×100, gemessene Eckdaten:
+| Datum | Run | Auflösung | Steps | Dauer | best | @ | ep_len | Ende |
+|---|---|---|---|---|---|---|---|---|
+| 15.08. | `2230` | **250×150** | 1.5 M | 20.0 h | **1181.2** | 1.48 M | 769 | 485.8 |
+
+**Der erste Kamera-Agent, der unter `measured_v2` überhaupt Runden fährt.**
+Nachgefahren in der heutigen Umgebung (`python -m src.eval.vergleich`):
+
+| Modell | Beobachtung | Reward | ep_len | Runden | Tempo |
+|---|---|---|---|---|---|
+| Lidar-Experte (PPO) | exakt | 6401.7 | 2000 | 11 | 1.22 |
+| **Vision SAC `2230`** | **250×150** | **930.9** | **645** | **2** | **0.97** |
+| Vision SAC `2210` | 166×100 | −30.3 | 256 | 0 | 0.81 |
+| Vision SAC `2147` | 166×100 | −266.5 | 174 | 0 | 0.62 |
+
+Gegen `2210`, den bisherigen Besten unter derselben Physik:
 
 ```
-Wahrnehmungsschwelle   0.64  ->  0.42 m/s
-Rechenzeit je Update   55.4  ->  104.6 ms      (+89 %)
-Buffer 500k            15.5  ->  34.9 GB
-Echte Rate mit Rendern        19.5 Steps/s  ->  21.4 h fuer 1.5 M
-Auswertungen (150 x 5 Episoden)             ->  0.03 bis 0.24 h, vernachlaessigbar
+                      2230 (250x150)     2210 (166x100)
+beste Auswertung      1181.2 @ 1.48 M     875.7 @ 4.07 M
+letzte fuenf           485.8              -315.6
+positive Auswertungen  23 von 150 (15 %)   16 von 500 (3 %)
+Ertrag je Frame          2.009              1.182
+Schwelle (siehe unten)    282 Frames         465 Frames
 ```
 
-Vorbereitung geprüft: Datensatz `20260814_193640` mit 12000 Bildern à
-(3, 150, 250), Backbone `20260814_1940` mit `linear.0 (256, 25920)` — der Wert
-passt zu 150×250 und belegt, dass die dynamische Berechnung greift.
-Nachtrainiert erreicht das Backbone MSE 0.00366 auf dem Datensatz und trifft
-alle drei Aktionen in Mittelwert und Streuung.
+Besser bei einem **Drittel** der Schritte und 20 statt 33 Stunden. Der Ertrag
+je Frame hat sich fast verdoppelt — das ist die sauberste Einzelzahl dafür,
+dass die Auflösung gewirkt hat, weil sie nicht von der Episodenlänge abhängt.
 
-Erwartung, offen formuliert: bei 166×100 zeigte sich vor 2.78 M Schritten
-nichts. Wenn die Auflösung wirkt, sollte die Bewegung früher einsetzen. Bleibt
-`rollout/ep_rew_mean` nach 1.5 M flach, ist das **kein** Beweis gegen die
-Auflösung, sondern nur einer dafür, dass 1.5 M nicht reichen — ein positives
-Ergebnis wiegt hier deutlich schwerer als ein negatives.
+### Die Sprünge in der Kurve sind kein instabiles Lernen
+
+```
+1,400,000    -291.0   ep_len 193     unter der Schwelle
+1,410,000   + 807.0   ep_len 656     darueber
+1,440,000    -149.5   ep_len 224     wieder darunter
+1,480,000   +1181.2   ep_len 769     darueber
+```
+
+Der Agent pendelt um die Schwelle von 282 Frames, ab der der Fahrertrag die
+feste Crash-Strafe von −300 wieder hereinholt. Die Kennzahl kippt dort, statt
+zu steigen. Ausführlich in `rl_erkenntnisse.md`, Abschnitt 10.
+
+### Warum er trotzdem crasht
+
+Reproduzierbar an derselben Stelle — vier von vier beobachteten Episoden,
+außen in der linken Haarnadel. Er fährt dort 1.11 m/s, der Experte 1.04, und
+bremst 12 Frames vorher statt 40.
+
+Die Ursache ist nicht Sicht und nicht Planungshorizont, sondern die Auflösung
+der **Geschwindigkeit**: der Unterschied zwischen 1.04 und 1.11 m/s beträgt in
+seinem Bild 0.17 Pixel. Hergeleitet in `rl_erkenntnisse.md`, Abschnitt 13d,
+mit `src/eval/fahrlinien.py` als Abbildung.
+
+**Daraus folgt Phase 6.**
+
+## Phase 6 — gespreizter Framestapel (16.08., vorbereitet)
+
+`t, t−4, t−8` statt `t, t−1, t−2`. Vervierfacht die Verschiebung zwischen den
+gestapelten Bildern, ohne dass mehr gespeichert oder gerechnet wird:
+
+```
+                        1.20/1.41 m/s   1.04/1.11 m/s
+jetzt   t, t-1, t-2          0.50 px         0.17 px
+        t, t-4, t-8          1.99 px         0.66 px
+```
+
+**Prüfbare Vorhersage:** das späte Bremsen sollte verschwinden (grobe
+Unterscheidung wird sichtbar), die knappe Kurvenentscheidung noch nicht — dafür
+bräuchte es Abstand 8.
+
+Umgesetzt in `src/utils/framestapel_gespreizt.py` und als `stride` im
+Replay-Buffer. Geprüft für Abstand 1, 2, 4 und 8 gegen eine Referenz, bei
+Abstand 1 bitgleich mit SB3s `VecFrameStack`. Kosten 6 % beim Ziehen.
+
+`STRIDE` steht in Datensammlung, Vortraining und Training und wird in
+`train_config.json` sowie in der `npz`-Datei des Datensatzes protokolliert.
 
 ## Phase 6 — weitere offene Änderungen
 
@@ -339,7 +398,8 @@ verdeckte es durch ein zwanzigfach zu schnelles Fahrzeug.
 | B | `1601`, `2233`, `2328` | altes Modell, PPO |
 | C | `2147`, `2210` | gemessenes Modell, Reward v3, w_int 0.08 |
 | D | `2331` | allein — gamma 0.999 |
-| E | *noch leer* | aktueller Stand |
+| E | `2230` | 250×150, Einzelbild-Buffer, Zeitlimit korrekt |
+| F | *noch leer* | zusätzlich gespreizter Framestapel |
 
 `2347` steht außerhalb: zwei gleichzeitig veränderte Größen.
 
