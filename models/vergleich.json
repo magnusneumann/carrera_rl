@@ -1,5 +1,5 @@
 {
-  "episoden": 2,
+  "episoden": 3,
   "reward": {
     "version": "v3_rundenzeit",
     "crash_penalty": -300.0,
@@ -34,7 +34,7 @@
       "reward_std": 0.0,
       "ep_len": 256.0,
       "runden": 0.0,
-      "tempo": 0.8109637030199803,
+      "tempo": 0.8109637030199804,
       "strecke_m": 6.920223599103832,
       "name": "09_Vision_SAC_Finetuned_20260729_2210",
       "obs": "vision",
@@ -48,13 +48,27 @@
       "reward_std": 0.0,
       "ep_len": 33.0,
       "runden": 0.0,
-      "tempo": 0.12461417042723896,
+      "tempo": 0.12461417042723895,
       "strecke_m": 0.13707558746996287,
       "name": "09_Vision_SAC_Finetuned_20260731_2331",
       "obs": "vision",
       "global_size": [
         166,
         100
+      ]
+    },
+    {
+      "reward": 930.8638797923923,
+      "reward_std": 0.0,
+      "ep_len": 645.0,
+      "runden": 2.0,
+      "tempo": 0.9735657949718909,
+      "strecke_m": 20.931664591895654,
+      "name": "09_Vision_SAC_Finetuned_20260815_2230",
+      "obs": "vision",
+      "global_size": [
+        250,
+        150
       ]
     },
     {

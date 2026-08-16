@@ -21,7 +21,7 @@
   "n_eval_episodes": 5,
   "eval_alle_n_steps": 10000,
   "backbone": "models\\pretrained_vision_20260814_1940.pth",
-  "dauer_sekunden": null,
+  "dauer_sekunden": 71868,
   "bsp": true,
   "reward": {
     "version": "v3_rundenzeit",
@@ -120,6 +120,6 @@
     "torch": "2.12.0+cu132",
     "python": "3.13.13"
   },
-  "best_model_step": null,
-  "best_model_reward": null
+  "best_model_step": 1480000,
+  "best_model_reward": 1181.238493
 }
