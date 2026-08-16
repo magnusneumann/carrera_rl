@@ -30,7 +30,10 @@ ins Zeitlimit.
 
 Durchsatz zur Umrechnung, gemessen:
 
-
+```
+166×100   rund 135 000 Steps/h    1.5 M ≈ 11 h   2.5 M ≈ 19 h   5 M ≈ 33 h
+250×150   rund  75 000 Steps/h    1.5 M ≈ 20 h
+```
 
 ---
 
