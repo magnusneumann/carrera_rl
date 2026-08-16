@@ -103,6 +103,7 @@ class FramestapelReplayBuffer(ReplayBuffer):
         handle_timeout_termination: bool = True,
         n_stack: int = 3,
         channels_order: str = "first",
+        stride: int = 1,
     ):
         if optimize_memory_usage:
             raise ValueError(
@@ -113,6 +114,15 @@ class FramestapelReplayBuffer(ReplayBuffer):
             raise ValueError("Dieser Buffer erwartet einen Box-Beobachtungsraum.")
 
         self.n_stack = int(n_stack)
+        # Zeitlicher Abstand zwischen den gestapelten Bildern. MUSS mit dem
+        # Wrapper uebereinstimmen, der die Beobachtung liefert - sonst trainiert
+        # der Agent auf etwas anderem, als er spaeter sieht. Siehe
+        # framestapel_gespreizt.pruefe_stride().
+        self.stride = int(stride)
+        if self.stride < 1:
+            raise ValueError("stride muss mindestens 1 sein")
+        # Soweit muss zurueckgeschaut werden, um das aelteste Bild zu erreichen
+        self.tiefe = (self.n_stack - 1) * self.stride
         self.channels_order = channels_order
         voll = observation_space.shape
 
@@ -220,34 +230,58 @@ class FramestapelReplayBuffer(ReplayBuffer):
         dort mit Nullen aufgefüllt — genauso wie VecFrameStack nach einem
         reset().
         """
-        n, N = self.n_stack, len(batch_inds)
+        n, N, s = self.n_stack, len(batch_inds), self.stride
 
-        # Platz k im Stapel (0 = ältestes) zeigt auf batch_inds - (n-1-k).
-        zurueck = np.arange(n - 1, -1, -1)
+        # Platz k im Stapel (0 = ältestes) zeigt auf batch_inds - (n-1-k)*stride.
+        zurueck = np.arange(n - 1, -1, -1) * s
         idx = (batch_inds[:, None] - zurueck[None, :]) % self.buffer_size
 
         # Gültigkeit: Platz k ist nur erreichbar, wenn zwischen ihm und dem
-        # aktuellen Bild kein Episodenende liegt. dones[i-z] == 1 heißt, der
-        # Übergang bei i-z beendete die Episode; alles Ältere ist damit
-        # ebenfalls ungültig, deshalb das kumulative Produkt.
+        # aktuellen Bild kein Episodenende liegt. Geprüft werden muss JEDER
+        # Schritt dazwischen, nicht nur die gestapelten - bei stride > 1 liegen
+        # dazwischen Frames, die nicht im Stapel stehen, aber sehr wohl eine
+        # Episodengrenze enthalten können.
         gueltig = np.ones((N, n), dtype=bool)
-        if n > 1:
-            zur = np.arange(1, n)
+        if self.tiefe > 0:
+            zur = np.arange(1, self.tiefe + 1)
             d = self.dones[(batch_inds[:, None] - zur[None, :]) % self.buffer_size,
                            env_inds[:, None]] > 0
-            kum = np.cumprod(~d, axis=1)                    # (N, n-1)
-            gueltig[:, : n - 1] = kum[:, ::-1]              # Platz 0 = weiteste Sicht
+            kum = np.cumprod(~d, axis=1)                    # (N, tiefe)
+            # Platz k liegt (n-1-k)*stride Schritte zurück
+            for k in range(n - 1):
+                gueltig[:, k] = kum[:, (n - 1 - k) * s - 1]
 
         # Ein einziger Zugriff über das flache Feld: (N, n, *Einzelbild)
         flach = self.observations.reshape((-1,) + self.observations.shape[2:])
         bilder = flach[idx * self.n_envs + env_inds[:, None]]
         bilder[~gueltig] = 0
 
-        # Folgestapel: dieselben Bilder um eine Stelle versetzt, oben die
-        # gespeicherte Folgebeobachtung.
         folge = np.empty_like(bilder)
-        folge[:, : n - 1] = bilder[:, 1:]
         folge[:, n - 1] = self.next_observations[batch_inds, env_inds]
+
+        if s == 1:
+            # Bei Abstand 1 ist der Folgestapel der Beobachtungsstapel um eine
+            # Stelle versetzt - die Bilder sind schon geholt, ein Kopieren genügt.
+            folge[:, : n - 1] = bilder[:, 1:]
+        else:
+            # Bei größerem Abstand liegen die Bilder woanders: der Folgestapel
+            # gehört zum Zeitpunkt i+1, seine älteren Bilder stehen also bei
+            # i+1-z*stride und nicht bei i-z*stride.
+            #     stride=1:  obs [i-2, i-1, i]   folge [i-1, i,   i+1]
+            #     stride=2:  obs [i-4, i-2, i]   folge [i-3, i-1, i+1]
+            zur_f = np.arange(n - 1, 0, -1) * s
+            idx_f = (batch_inds[:, None] + 1 - zur_f[None, :]) % self.buffer_size
+            g_f = np.ones((N, n - 1), dtype=bool)
+            if self.tiefe > 0:
+                for k in range(n - 1):
+                    m = (n - 1 - k) * s
+                    # Zwischen i+1-m und i+1 liegen die Enden dones[i-1..i+1-m],
+                    # also m-1 Stück. Für m <= 1 ist nichts zu prüfen.
+                    if m > 1:
+                        g_f[:, k] = kum[:, m - 2]
+            bilder_f = flach[idx_f * self.n_envs + env_inds[:, None]]
+            bilder_f[~g_f] = 0
+            folge[:, : n - 1] = bilder_f
 
         return self._ordnen(bilder), self._ordnen(folge)
 
@@ -268,10 +302,10 @@ class FramestapelReplayBuffer(ReplayBuffer):
         neueste Bild. Wer bei `pos` zurueckgreift, stapelt Bilder aus zwei
         weit auseinanderliegenden Episoden zusammen.
 
-        Ungueltig sind genau pos ... pos+n_stack-2:
-            pos     braucht pos-1, pos-2   -> beide ueberschrieben
-            pos+1   braucht pos (gut), pos-1 -> eines ueberschrieben
-            pos+2   braucht pos+1, pos      -> beide gueltig
+        Ungueltig sind genau die (n_stack-1)*stride Indizes ab pos:
+            pos     braucht pos-1 ... pos-tiefe   -> alle ueberschrieben
+            pos+1   braucht pos (gut), pos-1 ...  -> teilweise ueberschrieben
+            ab pos+tiefe                          -> alle Vorgaenger gueltig
         """
         if not self.full:
             # Noch nie umgelaufen: Index 0 greift auf die genullten Enden des
@@ -281,7 +315,7 @@ class FramestapelReplayBuffer(ReplayBuffer):
                 np.random.randint(0, self.pos, size=batch_size), env=env
             )
 
-        tot = self.n_stack - 1
+        tot = self.tiefe
         batch_inds = (
             np.random.randint(0, self.buffer_size - tot, size=batch_size)
             + self.pos + tot
