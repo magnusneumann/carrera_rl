@@ -321,17 +321,87 @@ gesehen.
 Zusätzlich werden die kopierten Gewichte **nicht eingefroren** und können im
 Lauf von Millionen Schritten wieder wegoptimiert werden.
 
+### Gemessen: das vortrainierte Netz konnte nie fahren
+
+Naheliegende Annahme: das Vortraining erzeugt eine funktionierende Fahrpolitik,
+von der nur die Hälfte weitergegeben wird. **Die Annahme ist falsch.** Lässt man
+das vollständige Netz selbst fahren (`python -m src.eval.bc_fahren`), kommt bei
+allen drei je erzeugten Backbones dasselbe heraus:
+
+| Backbone | Auflösung | Physik | Frames | Runden | Ende |
+|---|---|---|---|---|---|
+| Juni `1227` | 166×100 | force_drag_v1 | 24 | 0 | Crash |
+| Juli `2124` | 166×100 | measured_v2 | 68 | 0 | Crash |
+| August `1940` | 250×150 | measured_v2 | 230 | 0 | Crash |
+
+Zum Vergleich fährt der Lidar-Experte, dessen Aktionen kopiert wurden, 2000
+Frames und 11 Runden ohne Crash.
+
+Das ist bemerkenswert, weil das Netz die Expertenaktionen sehr genau vorhersagt
+(MSE 0.0034) und die zeitliche Information nachweislich benutzt — friert man
+den Stapel auf drei identische Bilder ein, steigt der Fehler um Faktor 125 auf
+0.426.
+
+### Warum die Genauigkeit nichts nützt
+
+Der Datensatz enthält nur Zustände, in die der **Experte** gerät. Weicht der
+Schüler minimal ab, sieht er Bilder, zu denen er nie eine Antwort gelernt hat,
+weicht weiter ab, und der Fehler schaukelt sich auf. Gemessen an der Abweichung
+zwischen Schüler und Experte im selben Zustand:
+
+```
+auf dem Datensatz (Expertenlinie)     0.046
+beim Selbstfahren, gesamt             0.264
+beim Selbstfahren, nur Lenkung        0.644
+```
+
+Das ist der Standardfall der Verteilungsdrift beim Imitationslernen. Das
+Gegenmittel heißt **DAgger**: den Schüler fahren lassen, in *seinen* Zuständen
+den Experten fragen, die Paare dem Datensatz hinzufügen, neu trainieren. Die
+Voraussetzung dafür ist hier gegeben und selten — der Lidar-Experte ist in
+jedem Zustand abfragbar.
+
+### Zwei geprüfte und verworfene Erklärungen
+
+Beide klangen plausibel und waren falsch. Festgehalten, weil das Ausschließen
+genauso zählt:
+
+1. **Unterschiedliche Stapel-Konvention beim Reset.** Die Datensammlung füllt
+   beim Reset alle drei Plätze mit dem ersten Bild, `VecFrameStack` füllt mit
+   Nullen. Das Netz hat also nie einen Stapel mit schwarzen Bildern gesehen.
+   Nachgemessen wird es mit der Datensatz-Konvention aber **schlechter**
+   (116 statt 230 Frames).
+2. **Unterschiedlicher Renderpfad.** Der Datensatz wird mit
+   `render_mode="human"` aufgezeichnet, also über Pygame, trainiert wird mit
+   `"hidden"` über cv2. Der Unterschied ist real — 0.04 % der Pixel, was die
+   Lenkung um 0.134 verschiebt — aber zu klein für die gemessenen 0.644. Ein
+   vermeidbarer Mangel, nicht die Ursache.
+
+### Und doch kein Blocker
+
+Lauf `1432` erreichte 3828 mit genau dem Backbone, das 24 Frames weit fährt.
+RL kann also auf einer unbrauchbaren Fahrpolitik aufsetzen und trotzdem fahren
+lernen — **die Faltungsschichten liefern brauchbare Augen, unabhängig davon,
+wie schlecht der Kopf ist.**
+
+Damit ist offen, ob das Vortraining seinen Aufwand überhaupt wert ist. Für PPO
+wurde es getestet (`bsp`-Vergleich), für SAC nie. Solange das aussteht, ist der
+Backbone-Schritt eine Gewohnheit, keine belegte Verbesserung.
+
 ### Was mehr bringen würde
 
 1. Faltungsschichten anfangs einfrieren
-2. auch die Linear-Schichten übernehmen, Actor damit initialisieren
+2. auch die Linear-Schichten übernehmen, Actor damit initialisieren — setzt
+   voraus, dass die Vorlage überhaupt fährt, also DAgger davor
 3. **Replay-Buffer mit Experten-Übergängen vorfüllen** — SAC lernt off-policy,
    kann also direkt aus fremden Übergängen lernen. Dafür müsste der Experte
    neu aufgezeichnet werden, mit vollständigen Übergängen
    (`obs, action, reward, next_obs, done`) statt nur Bild und Aktion.
+4. Aufzeichnung über denselben Renderpfad wie das Training
 
-*Suchbegriffe:* behaviour cloning, imitation learning, cross-modal distillation,
-DDPGfD, SACfD, learning from demonstrations, DAgger
+*Suchbegriffe:* behaviour cloning, imitation learning, covariate shift,
+compounding errors, DAgger, cross-modal distillation, DDPGfD, SACfD,
+learning from demonstrations
 
 ---
 

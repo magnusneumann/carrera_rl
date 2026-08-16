@@ -354,13 +354,35 @@ Begründung: eine Änderung pro Lauf, sonst ist die Wirkung nicht zuzuordnen. Un
 ohne Referenz unter dem aktuellen Code ist gar nichts zuzuordnen.
 
 Schritt 0 ist **erledigt**: die Ursache ist die Wahrnehmung (Phase 4).
+Die Auflösung läuft gerade (Phase 5).
 
 | Schritt | Was | Beantwortet | Budget |
 |---|---|---|---|
-| ~~0~~ | ~~SAC auf Lidar~~ | ~~liegt es an der Wahrnehmung?~~ | **ja, erledigt** |
-| 1 | **Framestapel zeitlich spreizen** | hebt es die Subpixel-Grenze auf? | 12–24 h |
-| 2 | Auflösung erhöhen | wirkt schwächer, aber additiv | 12–24 h |
-| 3 | PPO unter der besseren Kamera | SAC gegen PPO, **gleiche Zeit** | 12–24 h |
+| ~~0~~ | ~~SAC auf Lidar~~ | ~~liegt es an der Wahrnehmung?~~ | **erledigt** |
+| ~~1~~ | ~~Auflösung 250×150~~ | ~~hilft mehr Bildschärfe?~~ | **läuft** |
+| 2 | **Framestapel zeitlich spreizen** | hebt es die Subpixel-Grenze auf? | 12–24 h |
+| 3 | `crash_penalty` senken | löst es die Schwelle auf? | 12–24 h |
+| 4 | SAC **ohne** Backbone | ist das Vortraining seinen Aufwand wert? | 12–24 h |
+| 5 | PPO unter der besseren Kamera | SAC gegen PPO, **gleiche Zeit** | 12–24 h |
+
+### Warum Schritt 2 vor Schritt 3 kommt
+
+Schritt 2 greift das einzige **bewiesene** Problem an (Wahrnehmung, belegt
+durch den Lidar-Kontrollversuch und die Ablation) und kostet weder Speicher
+noch Rechenzeit. Schritt 3 greift ein diagnostiziertes, aber nicht als Ursache
+bewiesenes Problem an und ändert dabei die Reward-Skala — danach sind die
+Zahlen wieder nicht mit früheren Läufen vergleichbar.
+
+### Warum Schritt 4 dazugekommen ist
+
+Das vortrainierte Netz konnte in keiner Fassung fahren (24, 68 und 230 Frames,
+nie eine Runde — siehe `rl_erkenntnisse.md`, Abschnitt 8). Lauf `1432` gelang
+trotzdem, die Faltungsschichten taugen also als Augen. Ob sie mehr nützen als
+zufällige Anfangsgewichte, ist für SAC **nie geprüft** worden. Für PPO gibt es
+den `bsp`-Vergleich, für SAC nicht.
+
+Solange das aussteht, kostet jeder Lauf einen Datensatz und ein Vortraining,
+ohne dass belegt wäre, dass es etwas bringt.
 
 ### Warum Schritt 1 jetzt vorne steht
 
