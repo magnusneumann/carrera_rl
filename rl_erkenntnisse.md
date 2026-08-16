@@ -1348,6 +1348,62 @@ Startzustand ist fest und die Auswertung deterministisch, also sind die
 Episoden identisch. Das ist keine Präzision, sondern fehlende Variation — für
 belastbare Aussagen bräuchte es zufällige Startpositionen.
 
+### Der Fehlerfall im Einzelnen (16.08.)
+
+Der Lauf `20260815_2230` (250×150) fährt erstmals Runden, crasht aber
+reproduzierbar an derselben Stelle — vier von vier beobachteten Episoden, außen
+in der linken Haarnadel (Bahnposition 0.111). Der Vergleich mit dem Experten an
+genau dieser Stelle:
+
+| | Experte | Kamera-Agent |
+|---|---|---|
+| Tempo bei Bahn 0.111 | 1.04 m/s | 1.11 m/s |
+| Bremsbeginn | Bahn 0.902 | Bahn 0.050 |
+| Vorlauf | ~40 Frames | ~12 Frames |
+| Bremsstärke | 0.29 – 0.44 | 1.00 |
+| Spitzentempo davor | 1.32 | 1.41 |
+
+Der Agent **beschleunigt in die Kurve hinein** — sein Höchsttempo erreicht er
+unmittelbar davor — und bremst dann voll, zu spät. Der Experte bremst dreimal so
+früh und sanft.
+
+Auffällig ist, wie klein der Tempounterschied ist: 1.11 gegen 1.04 m/s, also
+7 %. Es ist keine grobe Fehleinschätzung, sondern eine knappe.
+
+### Warum er nicht früher bremst
+
+Nicht, weil er die Kurve nicht sieht — er hat die Vogelperspektive der ganzen
+Strecke. Und nicht wegen des Planungshorizonts: 40 Frames Vorlauf liegen
+bequem innerhalb der 100 Frames, die gamma = 0.99 abdeckt.
+
+Sondern weil er sein eigenes Tempo nicht genau genug ablesen kann. Bei 250×150
+entspricht die Verschiebung je Frame:
+
+```
+1.04 m/s  ->  2.46 px        1.20 m/s  ->  2.84 px
+1.11 m/s  ->  2.63 px        1.41 m/s  ->  3.34 px
+```
+
+Die Unterschiede, auf die es ankommt:
+
+| zu unterscheiden | Differenz | mit Abstand 4 |
+|---|---|---|
+| 1.04 gegen 1.11 m/s (schafft die Kurve / schafft sie nicht) | **0.17 px** | 0.66 px |
+| 1.20 gegen 1.41 m/s (normale Fahrt / Anbremspunkt) | **0.50 px** | 1.99 px |
+
+> Der Agent sieht, **dass** er fährt, aber nicht **wie schnell** — jedenfalls
+> nicht in der Auflösung, die über die Kurve entscheidet. Der Unterschied
+> zwischen „geht" und „geht nicht" beträgt in seinem Bild ein Sechstel Pixel.
+
+Das erklärt beides: das späte Bremsen (er merkt erst, dass er zu schnell ist,
+wenn die Wand groß im Bild steht) und die unruhige Linie (er kann keine
+konstante Geschwindigkeit halten, weil er sie nicht misst).
+
+**Vorhersage für den gespreizten Framestapel:** mit Abstand 4 wird die
+gröbere Unterscheidung (1.99 px) sichtbar, die feine (0.66 px) noch nicht.
+Abstand 8 brächte 1.3 px auch für die feine. Das ist die konkreteste Prognose,
+die sich aus diesem Befund ableiten lässt — und damit prüfbar.
+
 ### Ansatzpunkte
 
 Gegen Fehler B — Wahrnehmung, die belegte Ursache:
