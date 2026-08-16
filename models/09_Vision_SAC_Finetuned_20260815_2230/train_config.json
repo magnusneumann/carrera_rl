@@ -1,0 +1,125 @@
+{
+  "run_name": "09_Vision_SAC_Finetuned_20260815_2230",
+  "algorithm": "SAC",
+  "total_timesteps": 1500000,
+  "gamma": 0.99,
+  "learning_rate": 5e-05,
+  "n_envs": 1,
+  "obs_type": "vision",
+  "camera_view": "global",
+  "global_size": [
+    250,
+    150
+  ],
+  "n_stack": 3,
+  "batch_size": 512,
+  "buffer_size": 500000,
+  "replay_buffer": "FramestapelReplayBuffer",
+  "train_freq": 2,
+  "gradient_steps": 1,
+  "learning_starts": 5000,
+  "n_eval_episodes": 5,
+  "eval_alle_n_steps": 10000,
+  "backbone": "models\\pretrained_vision_20260814_1940.pth",
+  "dauer_sekunden": null,
+  "bsp": true,
+  "reward": {
+    "version": "v3_rundenzeit",
+    "crash_penalty": -300.0,
+    "lap_bonus": 50.0,
+    "wrong_way_penalty": -30.0,
+    "w_speed": 1.0,
+    "w_reverse": 10.0,
+    "v_slow": 0.6,
+    "w_slow": 4.0,
+    "w_smooth": 0.5,
+    "osc_threshold": 2.0,
+    "w_integral": 0.0,
+    "w_lap_improvement": 5.0
+  },
+  "env": {
+    "dt": 0.03333333333333333,
+    "L_m": 0.058,
+    "max_steer_angle_deg": 29.999999999999996,
+    "max_steer_change": 0.5,
+    "mu": 0.3,
+    "pixels_per_meter": 236.0,
+    "longitudinal": {
+      "model": "measured_v2",
+      "max_speed_ms": 1.9,
+      "allow_reverse": false,
+      "source": "analyse_v10 / kinematik_v10_104532.png",
+      "drive_lo": [
+        0.3,
+        0.506
+      ],
+      "drive_hi": [
+        2.05,
+        0.7166315789473683
+      ],
+      "a_brake": 0.16699999999999998,
+      "r0": 0.05,
+      "r1": 0.336
+    },
+    "geometry": {
+      "hitbox_px": [
+        20.0,
+        7.0
+      ],
+      "start_state": [
+        1.91,
+        0.35,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "vision": {
+      "model": "cv2_numpy_v1",
+      "renderer": "hidden",
+      "camera_view": "global",
+      "gray_levels": 4,
+      "target_hw": [
+        150,
+        250
+      ]
+    },
+    "assets": {
+      "track": "data/strecke.png",
+      "car": "data/carrera_car.png"
+    },
+    "seed": null,
+    "max_speed_ms": 1.9
+  },
+  "git": {
+    "verfuegbar": true,
+    "commit": "23c1a1c0ca038a4888552d3f7b4c09d686f93885",
+    "commit_kurz": "23c1a1c0c",
+    "branch": "ppo-vergleich",
+    "dirty": false,
+    "geaenderte_dateien": 0
+  },
+  "hardware": {
+    "python": "3.13.13",
+    "torch": "2.12.0+cu132",
+    "cuda_verfuegbar": true,
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "gpu_speicher_gb": 15.9,
+    "cpu_kerne": 8,
+    "ram_gb": 61.6,
+    "stable_baselines3": "2.8.0"
+  },
+  "modell": {
+    "parameter_gesamt": 41033706,
+    "policy_klasse": "CnnPolicy",
+    "parameter_actor": 13546150,
+    "parameter_critic": 13743778
+  },
+  "versions": {
+    "stable_baselines3": "2.8.0",
+    "torch": "2.12.0+cu132",
+    "python": "3.13.13"
+  },
+  "best_model_step": null,
+  "best_model_reward": null
+}

@@ -504,6 +504,82 @@ der gut fahrende Lidar-Experte zahlte **−625 über 2000 Frames**, mehr als sei
 gesamten Rundenboni (+600). Die Schwelle war auf 2.0 gesetzt, sein Mittelwert
 lag bei 5.9.
 
+### Eine feste Crash-Strafe macht die Kennzahl bimodal
+
+Der wichtigste Reward-Befund dieses Projekts, und er wurde lange übersehen,
+weil er sich erst beim Zerlegen einer einzelnen Episode zeigt.
+
+Eine Episode des Kamera-Agenten (Stand 850 k Schritte, 250×150), aufgeschlüsselt
+nach den Posten aus `reward_func.py`:
+
+| Posten | Summe | je Frame |
+|---|---|---|
+| Tempo `2·w_speed·v²` | +313.2 | +1.623 |
+| Langsam-Strafe | −145.7 | −0.755 |
+| Lenk-Glättung | −26.7 | −0.138 |
+| Rundenboni | +45.3 | +0.235 |
+| **Fahren zusammen** | **+186.1** | **+0.964** |
+| Crash | −300.0 | −1.554 |
+| **gemessen** | **−113.9** | **−0.590** |
+
+**Das Fahren ist längst positiv.** Was die Bilanz kippt, ist ein einziger
+Crash — eine feste Strafe, die nicht mit der Episodenlänge skaliert.
+
+### Daraus folgt eine Schwelle
+
+Der Ertrag wächst linear mit der Episodenlänge, die Strafe ist konstant. Es
+gibt also eine Länge, ab der sich Fahren überhaupt erst lohnt:
+
+```
+Reward(n) ≈ Ertrag_je_Frame · n − 300
+Nulldurchgang bei n = 300 / Ertrag_je_Frame
+```
+
+Regression über die Auswertungen beider Läufe:
+
+| Lauf | Reward ≈ | Korrelation | Schwelle |
+|---|---|---|---|
+| 250×150 (laufend, ab 400 k) | 2.009·n − 567.4 | 0.774 | **282 Frames** |
+| 166×100 (`2210`, alle 500) | 1.182·n − 549.8 | 0.550 | **465 Frames** |
+
+Zwei Dinge stehen darin. Erstens: die höhere Auflösung hat den **Ertrag pro
+Frame fast verdoppelt** (2.01 gegen 1.18) und damit die nötige Episodenlänge
+fast halbiert. Zweitens: `2210` lag mit typischen 200–250 Frames weit unter
+seiner Schwelle von 465 und konnte sie praktisch nie erreichen — **2 von 500
+Auswertungen** lagen darüber.
+
+### Warum das die Auswertung unbrauchbar macht
+
+Die Kennzahl springt nicht allmählich, sondern kippt an der Schwelle. Ein Lauf
+knapp darunter produziert lauter negative Werte und gelegentlich, wenn eine
+Episode zufällig lang genug wird, einen weit positiven Ausreißer.
+
+Genau das ist `2210`s berühmte 875.7 bei ep_len 759: **16 von 500 Auswertungen
+positiv**, der Rest zwischen −200 und −400. Es ist kein erworbenes Können,
+sondern ein Ziehungsergebnis. Und weil „bester Einzelwert" mit der Zahl der
+Auswertungen wächst, bevorzugt diese Kennzahl automatisch längere Läufe.
+
+**Konsequenz für die Auswertung:** `best` allein ist irreführend. Zu berichten
+sind mindestens `best`, das Ende, und die **Episodenlänge** dazu — an der sieht
+man, auf welcher Seite der Schwelle ein Lauf steht.
+
+### Konsequenz für die Reward-Gestaltung
+
+Eine feste Terminalstrafe ist unauffällig, solange Episoden lang sind, und
+dominierend, sobald sie kurz werden. Wer sie einführt, sollte ausrechnen, ab
+welcher Episodenlänge sie sich amortisiert, und prüfen, ob der Agent diese
+Länge überhaupt erreichen kann. Sonst optimiert er faktisch nur „nicht
+crashen" und lernt, langsam zu kriechen — was hier messbar passiert ist:
+**35 % der Frames unter `v_slow`**, was allein 145.7 pro Episode kostet, also
+die Hälfte einer Crash-Strafe.
+
+Alternativen wären eine mit der Restzeit skalierende Strafe, ein reiner
+Fortschritts-Reward ohne Terminalstrafe, oder die Strafe als Abbruch ohne
+Punktabzug (der entgangene künftige Ertrag ist bereits Strafe genug).
+
+*Suchbegriffe:* terminal penalty scaling, reward shaping potential-based,
+survival bias in episodic returns, bimodal return distribution
+
 ### Und ein Log-Problem
 
 `best_lap_bonus` (200.0) und `slow_lap_penalty` (−30.0) standen in jeder
@@ -1041,6 +1117,11 @@ Daraus folgt eine wichtige methodische Korrektur: `evaluations.npz` allein
 täuscht. Eine Bestauswertung ohne entsprechende Bewegung in
 `rollout/ep_rew_mean` ist ein Ausreißer, kein Können. Beide Kurven gehören
 nebeneinander betrachtet.
+
+Warum `2210` überhaupt einmal auf 875.7 kam, ist inzwischen geklärt: die
+Kennzahl kippt an einer Schwelle der Episodenlänge, weil die Crash-Strafe fest
+ist und der Ertrag mit der Länge wächst. Siehe Abschnitt 10, „Eine feste
+Crash-Strafe macht die Kennzahl bimodal".
 
 ### Warum das gemessene Modell die Kamera unbrauchbar macht
 
