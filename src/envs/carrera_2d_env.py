@@ -16,7 +16,7 @@ from src.utils.virtual_camera import VirtualCamera
 class Carrera2DEnv(gym.Env):
     metadata = {"render_modes": ["human", "hidden"], "render_fps": 30}
 
-    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100), max_steer_change=0.5):
+    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100), max_steer_change=0.5, start_streuung=0.0):
         super().__init__()
 
         self.track_image_path = track_image_path
@@ -36,6 +36,21 @@ class Carrera2DEnv(gym.Env):
         # Parameter, damit sich aeltere Laeufe originalgetreu nachfahren
         # lassen - alles bis 1432 lief mit 1.0.
         self._max_steer_change_arg = max_steer_change
+        # Wie weit der Startpunkt nach HINTEN streuen darf, in Metern entlang
+        # der Geraden vor der Ziellinie. 0.0 = fester Startpunkt wie bisher.
+        #
+        # Ohne Streuung laeuft jede Episode identisch ab: gleicher Start,
+        # deterministische Physik, bei der Auswertung deterministische Policy.
+        # Fuenf Auswertungsepisoden liefern dann fuenfmal dasselbe Ergebnis,
+        # erkennbar an der Streuung von exakt +/- 0.00 in den Logs. Wir zahlen
+        # fuenffachen Aufwand fuer eine einzige Messung und koennen nicht
+        # unterscheiden, ob ein Wert typisch oder ein Gluecksfall ist.
+        #
+        # Die Gerade traegt rund 0.94 m: Mittellinie konstant bei y = 82 px
+        # von x = 220 bis zur Ziellinie bei x = 465. Der feste Startpunkt
+        # liegt bei x = 451, also 14 px davor.
+        self.start_streuung = float(start_streuung)
+        self._gesaet = False   # siehe reset(): der Seed wirkt nur einmal
         
         # --- Physikalische Parameter (SI-Einheiten) ---
         self.dt = 1/30.0
@@ -264,6 +279,7 @@ class Carrera2DEnv(gym.Env):
             "geometry": {
                 "hitbox_px": [self.hitbox_l_px, self.hitbox_w_px],
                 "start_state": list(self.start_state),
+                "start_streuung_m": self.start_streuung,
             },
 
             "vision": self._get_vision_config(),
@@ -285,14 +301,27 @@ class Carrera2DEnv(gym.Env):
         # Ein beim Konstruktor übergebener Seed gilt, solange der Aufrufer
         # keinen eigenen mitgibt. So landet derselbe Wert in reset() und in
         # get_env_config() – sonst protokollierten wir etwas, das nie wirkt.
-        if seed is None and self.seed_value is not None:
+        if seed is None and self.seed_value is not None and not self._gesaet:
+            # Nur EINMAL saeen. Wuerde bei jedem reset() derselbe Seed gesetzt,
+            # zoege der Zufallsgenerator jedes Mal dieselbe Zahl - zufaellige
+            # Startpunkte waeren dann in jeder Episode identisch. Der Lauf
+            # bleibt trotzdem reproduzierbar, weil die Kette der Ziehungen
+            # deterministisch ist.
             seed = self.seed_value
         if seed is not None:
             self.seed_value = seed
-        super().reset(seed=seed)
+            self._gesaet = True
+            super().reset(seed=seed)
+        else:
+            super().reset()
 
         # Startzustand: x, y, v, theta, omega
         self.state = np.array(self.start_state, dtype=float)
+        if self.start_streuung > 0.0:
+            # Nur nach hinten verschieben, damit die Ziellinie noch vor dem
+            # Auto liegt und die Rundenzaehlung ihren Sinn behaelt. Richtung
+            # und Geschwindigkeit bleiben unangetastet.
+            self.state[0] -= self.np_random.uniform(0.0, self.start_streuung)
         
         self._init_render()
         

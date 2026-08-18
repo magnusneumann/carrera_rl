@@ -7,6 +7,8 @@
   "obs_type": "vision",
   "camera_view": "global",
   "n_stack": 3,
+  "stride": 1,
+  "start_streuung": 0.0,
   "batch_size": 512,
   "buffer_size": 500000,
   "bsp": true,
@@ -59,7 +61,8 @@
         0.0,
         0.0,
         0.0
-      ]
+      ],
+      "start_streuung_m": 0.0
     },
     "vision": {
       "model": "cv2_numpy_v1",

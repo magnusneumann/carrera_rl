@@ -6,6 +6,7 @@
   "obs_type": "lidar",
   "camera_view": null,
   "n_stack": 1,
+  "start_streuung": 0.0,
   "stride": 1,
   "dauer_sekunden": 1180,
   "reward": {
@@ -57,7 +58,8 @@
         0.0,
         0.0,
         0.0
-      ]
+      ],
+      "start_streuung_m": 0.0
     },
     "vision": {
       "model": "none",

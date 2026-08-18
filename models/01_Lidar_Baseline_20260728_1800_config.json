@@ -55,7 +55,8 @@
         0.0,
         0.0,
         0.0
-      ]
+      ],
+      "start_streuung_m": 0.0
     },
     "vision": {
       "model": "none",
@@ -67,5 +68,7 @@
     },
     "seed": null,
     "max_speed_ms": 1.9
-  }
+  },
+  "start_streuung": 0.0,
+  "stride": 1
 }

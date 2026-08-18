@@ -1,17 +1,29 @@
 {
-  "run_name": "09_Vision_SAC_Finetuned_20260731_2331",
+  "run_name": "ZZR_20260818_2207",
   "algorithm": "SAC",
-  "total_timesteps": 1500000,
-  "gamma": 0.999,
+  "total_timesteps": 6000,
+  "gamma": 0.99,
   "learning_rate": 5e-05,
   "n_envs": 1,
   "obs_type": "vision",
   "camera_view": "global",
+  "global_size": [
+    250,
+    150
+  ],
   "n_stack": 3,
   "stride": 1,
-  "start_streuung": 0.0,
+  "start_streuung": 0.9,
   "batch_size": 512,
-  "buffer_size": 500000,
+  "buffer_size": 6000,
+  "replay_buffer": "FramestapelReplayBuffer",
+  "train_freq": 2,
+  "gradient_steps": 1,
+  "learning_starts": 800,
+  "n_eval_episodes": 10,
+  "eval_alle_n_steps": 2500,
+  "backbone": "models\\pretrained_vision_20260818_1734.pth",
+  "dauer_sekunden": 286,
   "bsp": true,
   "reward": {
     "version": "v3_rundenzeit",
@@ -63,7 +75,7 @@
         0.0,
         0.0
       ],
-      "start_streuung_m": 0.0
+      "start_streuung_m": 0.9
     },
     "vision": {
       "model": "cv2_numpy_v1",
@@ -71,8 +83,8 @@
       "camera_view": "global",
       "gray_levels": 4,
       "target_hw": [
-        100,
-        166
+        150,
+        250
       ]
     },
     "assets": {
@@ -82,11 +94,35 @@
     "seed": null,
     "max_speed_ms": 1.9
   },
+  "git": {
+    "verfuegbar": true,
+    "commit": "8ae319a9c447756f764459f441a3d1c899b9ef05",
+    "commit_kurz": "8ae319a9c",
+    "branch": "ppo-vergleich",
+    "dirty": true,
+    "geaenderte_dateien": 3
+  },
+  "hardware": {
+    "python": "3.13.13",
+    "torch": "2.12.0+cu132",
+    "cuda_verfuegbar": true,
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "gpu_speicher_gb": 15.9,
+    "cpu_kerne": 8,
+    "ram_gb": 61.6,
+    "stable_baselines3": "2.8.0"
+  },
+  "modell": {
+    "parameter_gesamt": 41033706,
+    "policy_klasse": "CnnPolicy",
+    "parameter_actor": 13546150,
+    "parameter_critic": 13743778
+  },
   "versions": {
     "stable_baselines3": "2.8.0",
     "torch": "2.12.0+cu132",
     "python": "3.13.13"
   },
-  "best_model_step": 100000,
-  "best_model_reward": -349.820821
+  "best_model_step": 2500,
+  "best_model_reward": -847.6794192
 }

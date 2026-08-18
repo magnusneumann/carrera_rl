@@ -184,41 +184,40 @@ mit `src/eval/fahrlinien.py` als Abbildung.
 
 **Daraus folgt Phase 6.**
 
-## Phase 6 — gespreizter Framestapel (16.08., vorbereitet)
+## Phase 6 — gespreizter Framestapel (16.–17.08.)
 
-`t, t−4, t−8` statt `t, t−1, t−2`. Vervierfacht die Verschiebung zwischen den
-gestapelten Bildern, ohne dass mehr gespeichert oder gerechnet wird:
+| Datum | Run | Abstand | Steps | best | positiv | letzte fünf |
+|---|---|---|---|---|---|---|
+| 16.08. | `2307` | **4** | 1.5 M | −134.3 | **0 von 150** | −217.1 |
+| 15.08. | `2230` | 1 | 1.5 M | 1181.2 | 23 von 150 | 485.8 |
 
-```
-                        1.20/1.41 m/s   1.04/1.11 m/s
-jetzt   t, t-1, t-2          0.50 px         0.17 px
-        t, t-4, t-8          1.99 px         0.66 px
-```
-
-**Prüfbare Vorhersage:** das späte Bremsen sollte verschwinden (grobe
-Unterscheidung wird sichtbar), die knappe Kurvenentscheidung noch nicht — dafür
-bräuchte es Abstand 8.
-
-Umgesetzt in `src/utils/framestapel_gespreizt.py` und als `stride` im
-Replay-Buffer. Geprüft für Abstand 1, 2, 4 und 8 gegen eine Referenz, bei
-Abstand 1 bitgleich mit SB3s `VecFrameStack`. Kosten 6 % beim Ziehen.
-
-`STRIDE` steht in Datensammlung, Vortraining und Training und wird in
-`train_config.json` sowie in der `npz`-Datei des Datensatzes protokolliert.
-
-## Phase 6 — weitere offene Änderungen
-
-Gegenüber `2331` haben sich außerdem drei Dinge geändert:
+**Negatives Ergebnis, zurückgenommen.** Der gespreizte Stapel (`t, t−4, t−8`)
+lag bei jeder Step-Zahl hinter dem Vorgänger, und der Abstand wuchs:
 
 ```
-gamma                          0.999  ->  0.99      (zurückgenommen)
-Replay-Buffer                  Standard -> Einzelbilder
-handle_timeout_termination     False  ->  True
+      Step   Abstand 4   Abstand 1    Differenz
+   300,000      -361.9      -278.4        -83.5
+   700,000      -335.1      -153.6       -181.5
+ 1,200,000      -281.4       +67.9       -349.3
 ```
 
-Umgebung und Reward sind gegenüber `2331` **unverändert** — Physik, Geometrie,
-Kamera und alle zwölf Reward-Parameter stimmen überein, nachgeprüft gegen die
-Konfigurationsdatei des Laufs.
+Die Vorhersage war, dass die vervierfachte Verschiebung das Tempo ablesbar
+macht. Sie tat es rechnerisch auch — und das Ergebnis wurde trotzdem
+schlechter. Zwei Erklärungen, beide ungeprüft:
+
+1. **Zuordnung.** Bei Abstand 1 überlappen sich die drei Autobilder (4.6 px
+   groß, 2.5 px Versatz) zu einem Schmierstreifen, dessen Form das Tempo
+   codiert. Bei Abstand 4 liegen sie 10 px auseinander — drei getrennte
+   Flecken, die das Netz erst einander zuordnen muss.
+2. **Positionsunschärfe.** Das älteste Bild ist 0.27 s alt.
+
+**Einschränkung:** der Vergleich hat zwei Variablen. Neben dem Abstand wurde
+auch das Backbone neu erzeugt (Datensatz musste zum Abstand passen), dabei
+zusätzlich der Experte neu trainiert und der Aufzeichnungspfad von Pygame auf
+cv2 umgestellt. Dass es am Abstand lag, ist plausibel, aber nicht bewiesen.
+
+Der Code bleibt (`framestapel_gespreizt.py`, `stride` im Buffer, geprüft für
+Abstand 1, 2, 4, 8). `STRIDE = 1` ist die Voreinstellung.
 
 ---
 
@@ -244,6 +243,58 @@ der einzige PPO-Lauf, der überhaupt etwas gelernt hat — mit 90 M Steps, dem
 
 Die Kombination **lr 5e-5 mit Backbone** ist bisher nicht getestet und die
 letzte offene Zelle im PPO-Versuchsplan.
+
+---
+
+## Phase 7 — Startpunkte, Rundenzeit, Auswertung (18.08., vorbereitet)
+
+**Noch kein Lauf.** Drei Änderungen, die nichts an der Aufgabe ändern:
+
+```
+START_STREUUNG  = 0.9      Startpunkt streut ueber die Gerade vor der Ziellinie
+N_EVAL_EPISODEN = 10       vorher 5
+Rundenzeit-Bonus           repariert - hat vorher NIE gefeuert
+```
+
+### Der Startpunkt war bisher immer derselbe
+
+Alle Läufe bis einschließlich `2307` starteten bei x = 451 px, 14 Pixel vor der
+Ziellinie. In den Konfigurationsdateien ist das inzwischen nachgetragen
+(`start_streuung = 0.0`, `env.geometry.start_streuung_m = 0.0`), ebenso
+`stride = 1` — beide Felder gab es zur Laufzeit noch nicht.
+
+Die Folge war, dass **jede Episode identisch ablief**: fester Start,
+deterministische Physik, bei der Auswertung deterministische Policy. Fünf
+Auswertungsepisoden lieferten fünfmal dasselbe, erkennbar an `± 0.00` in allen
+Logs. Wir zahlten fünffachen Aufwand für eine einzige Messung und konnten nicht
+unterscheiden, ob ein Wert typisch oder ein Glücksfall war.
+
+Jetzt streut der Startpunkt über 0.9 m entlang der Geraden — alle Punkte
+weiterhin **vor** der Linie, damit die Rundenzählung ihren Sinn behält.
+Richtung und Anfangsgeschwindigkeit bleiben unverändert.
+
+```
+vorher   episode_reward = -837.07 +/- 0.00     ep_len 167.00 +/- 0.00
+jetzt    episode_reward = -847.68 +/- 9.40     ep_len 196.40 +/- 3.67
+         episode_reward = -1166.47 +/- 75.95   ep_len 292.70 +/- 29.53
+```
+
+**Wirkung auf die Vergleichbarkeit: vorhanden, aber klein.** Der Agent löst eine
+leicht andere Aufgabe. Absolute Zahlen sind mit früheren Läufen nicht mehr
+streng vergleichbar.
+
+### Nebenbei zwei Fehler gefunden
+
+**Der Rundenzeit-Bonus hat seit dem 28.07. nie gefeuert.** Die erste
+Überquerung nach 9 Frames wurde als Rundenzeit gewertet, `best_lap_frames`
+stand danach bei 10, und keine echte Runde (rund 172 Frames) konnte das
+unterbieten. `w_lap_improvement = 5.0` war ein toter Parameter. Repariert: die
+erste Überquerung bekommt den Rundenbonus, setzt aber keine Zeit.
+
+**Der Seed wurde bei jedem `reset()` neu gesetzt.** Damit hätte der
+Zufallsgenerator jedes Mal dieselbe Zahl gezogen und alle Startpunkte wären
+trotz Streuung identisch geblieben. Jetzt wirkt der Seed einmal; die Folge der
+Ziehungen bleibt reproduzierbar.
 
 ---
 
