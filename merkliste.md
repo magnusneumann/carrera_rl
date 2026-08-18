@@ -1,4 +1,5 @@
-
+schlecht trainierter agent für demo
+demo muss mehr varianz haben - mensch inkput
 Ein Notebook dokumentiert den Arbeits/Denk/Forschungsprozess und dient als Interaktive Dokumentation mit welcher der Entscheidungsprozess und die Simulation zum mit machen vorgeführt wird.
 Das Auto brauch eine Trägheit und auch eine Art Grip/Höchstgeschwindigkeit, ggf hardgecoded einen Schleudervorgang, bei dem das Fahrzeug ausbricht in die aktuelle Lenkrichtung und die letzte Trajektorie beibehällt.
 Das Auto sollte etwas Trägheit haben und weiter rollen auch wenn der Gasbefehl grade nicht aktiv ist.
