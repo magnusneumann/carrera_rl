@@ -306,7 +306,7 @@ class Carrera2DEnv(gym.Env):
         self.episode_reward = 0.0
         self.current_steer = 0.0
         self.frames_since_lap = 0
-        self.reward_calculator.best_lap_frames = float('inf')   
+        self.reward_calculator.neue_episode()
         
         return self._get_obs(), {}
 

@@ -68,9 +68,24 @@ class RewardCalculator:
         self.w_lap_improvement = 5.0
 
         self.best_lap_frames = float('inf')   # beste Runde DIESER Episode
+        # Die erste Ueberquerung nach dem Reset schliesst KEINE volle Runde ab -
+        # der Agent startet vor der Linie, nicht auf ihr. Wurde sie trotzdem als
+        # Rundenzeit gewertet, stand best_lap_frames danach bei etwa 10 Frames
+        # und keine echte Runde (rund 180) konnte das je unterbieten:
+        # w_lap_improvement hat deshalb bis zum 17.08. NIE gefeuert.
+        self.erste_ueberquerung = True
+
+    def neue_episode(self):
+        """Episodenzustand zuruecksetzen. Von der Umgebung in reset() gerufen.
+
+        Frueher setzte die Umgebung best_lap_frames direkt. Mit einer zweiten
+        Zustandsvariablen ist das zu leicht zu vergessen, deshalb hier gebuendelt.
+        """
+        self.best_lap_frames = float('inf')
+        self.erste_ueberquerung = True
 
     def to_dict(self):
-        exclude = {"best_lap_frames"}
+        exclude = {"best_lap_frames", "erste_ueberquerung"}
         return {k: v for k, v in vars(self).items() if k not in exclude}
 
     def calculate(self, v, is_crashing, sf_crossed, is_new_lap, correct_direction,
@@ -120,9 +135,15 @@ class RewardCalculator:
 
         # 6. Rundenzeit
         if sf_crossed and is_new_lap:
-            if lap_frames < self.best_lap_frames:
-                # Die erste Runde setzt nur die Referenz und gibt keinen Bonus,
-                # sonst wäre die Verbesserung gegenüber "unendlich" unendlich.
+            if self.erste_ueberquerung:
+                # Teilrunde: der Agent startet irgendwo vor der Linie. Sie zaehlt
+                # nicht als Rundenzeit, startet aber die Messung. Den Rundenbonus
+                # aus Abschnitt 3 bekommt er trotzdem.
+                self.erste_ueberquerung = False
+            elif lap_frames < self.best_lap_frames:
+                # Die erste VOLLE Runde setzt nur die Referenz und gibt keinen
+                # Bonus, sonst wäre die Verbesserung gegenüber "unendlich"
+                # unendlich.
                 if self.best_lap_frames != float('inf'):
                     reward += (self.best_lap_frames - lap_frames) * self.w_lap_improvement
                 self.best_lap_frames = lap_frames

@@ -1,13 +1,29 @@
 {
-  "run_name": "01_Lidar_Baseline_20260816_2236",
-  "algorithm": "PPO",
-  "zweck": "Lidar-Experte als Vorlage fuer die Datensammlung",
-  "total_timesteps": 500000,
-  "obs_type": "lidar",
-  "camera_view": null,
-  "n_stack": 1,
-  "stride": 1,
-  "dauer_sekunden": 1180,
+  "run_name": "09_Vision_SAC_Finetuned_20260816_2307",
+  "algorithm": "SAC",
+  "total_timesteps": 1500000,
+  "gamma": 0.99,
+  "learning_rate": 5e-05,
+  "n_envs": 1,
+  "obs_type": "vision",
+  "camera_view": "global",
+  "global_size": [
+    250,
+    150
+  ],
+  "n_stack": 3,
+  "stride": 4,
+  "batch_size": 512,
+  "buffer_size": 500000,
+  "replay_buffer": "FramestapelReplayBuffer",
+  "train_freq": 2,
+  "gradient_steps": 1,
+  "learning_starts": 5000,
+  "n_eval_episodes": 5,
+  "eval_alle_n_steps": 10000,
+  "backbone": "models\\pretrained_vision_20260816_2259.pth",
+  "dauer_sekunden": 73868,
+  "bsp": true,
   "reward": {
     "version": "v3_rundenzeit",
     "crash_penalty": -300.0,
@@ -60,8 +76,14 @@
       ]
     },
     "vision": {
-      "model": "none",
-      "renderer": "hidden"
+      "model": "cv2_numpy_v1",
+      "renderer": "hidden",
+      "camera_view": "global",
+      "gray_levels": 4,
+      "target_hw": [
+        150,
+        250
+      ]
     },
     "assets": {
       "track": "data/strecke.png",
@@ -72,11 +94,11 @@
   },
   "git": {
     "verfuegbar": true,
-    "commit": "92a1adfbd07cef18ca6baa970b8c4887ef008099",
-    "commit_kurz": "92a1adfbd",
+    "commit": "3bca92271918c2a31957667bb6ed672069033b13",
+    "commit_kurz": "3bca92271",
     "branch": "ppo-vergleich",
-    "dirty": false,
-    "geaenderte_dateien": 0
+    "dirty": true,
+    "geaenderte_dateien": 1
   },
   "hardware": {
     "python": "3.13.13",
@@ -89,14 +111,16 @@
     "stable_baselines3": "2.8.0"
   },
   "modell": {
-    "parameter_gesamt": 9223,
-    "policy_klasse": "ActorCriticPolicy",
-    "features_extractor": "FlattenExtractor",
-    "features_dim": 4
+    "parameter_gesamt": 41033706,
+    "policy_klasse": "CnnPolicy",
+    "parameter_actor": 13546150,
+    "parameter_critic": 13743778
   },
   "versions": {
     "stable_baselines3": "2.8.0",
     "torch": "2.12.0+cu132",
     "python": "3.13.13"
-  }
+  },
+  "best_model_step": 1420000,
+  "best_model_reward": -134.271895
 }
