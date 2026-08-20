@@ -26,12 +26,19 @@ import json
 import os
 
 import numpy as np
+import torch
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 
 from src.envs.carrera_2d_env import Carrera2DEnv
 
 TRACK, CAR = 'data/strecke.png', 'data/carrera_car.png'
+# Dasselbe Geraet wie im Training. Auf der CPU rechnet PyTorch minimal
+# anders als auf der GPU - Unterschiede um 1e-7. Bei dieser Policy reicht
+# das aus: dasselbe Modell faehrt auf der GPU 2000 Frames und 9 Runden,
+# auf der CPU 216 Frames und crasht. Die Abweichung schaukelt sich ueber
+# die Episode auf. Siehe rl_erkenntnisse.md, Abschnitt 7.
+GERAET = 'cuda' if torch.cuda.is_available() else 'cpu'
 RUNDE_M = 7.66          # Mittellinie, siehe rl_erkenntnisse.md Referenzwerte
 
 
@@ -127,7 +134,8 @@ def main():
     print(f"Reward-Version {reward_jetzt.get('version')}, "
           f"w_integral={reward_jetzt.get('w_integral')}, "
           f"v_slow={reward_jetzt.get('v_slow')}")
-    print(f"Rundenlaenge {RUNDE_M} m, Zeitlimit 2000 Frames\n")
+    print(f"Rundenlaenge {RUNDE_M} m, Zeitlimit 2000 Frames, Geraet {GERAET}")
+    print()
     print(f"{'Modell':<40}{'Beobachtung':<13}{'Reward':>10}{'±':>8}"
           f"{'ep_len':>8}{'Runden':>8}{'Tempo':>8}")
     print("-" * 95)
@@ -138,7 +146,7 @@ def main():
         try:
             env = baue_env(obs_type, n_stack, gs)
             kls = PPO if algo == 'PPO' else SAC
-            m = kls.load(pfad, device='cpu')
+            m = kls.load(pfad, device=GERAET)
             e = fahre(m, env, args.episoden, dt, ppm)
             env.close()
         except Exception as fehler:

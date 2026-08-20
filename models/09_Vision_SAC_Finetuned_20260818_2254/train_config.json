@@ -1,7 +1,7 @@
 {
-  "run_name": "ZZR_20260818_2207",
+  "run_name": "09_Vision_SAC_Finetuned_20260818_2254",
   "algorithm": "SAC",
-  "total_timesteps": 6000,
+  "total_timesteps": 1500000,
   "gamma": 0.99,
   "learning_rate": 5e-05,
   "n_envs": 1,
@@ -13,17 +13,16 @@
   ],
   "n_stack": 3,
   "stride": 1,
-  "start_streuung": 0.9,
   "batch_size": 512,
-  "buffer_size": 6000,
+  "buffer_size": 500000,
   "replay_buffer": "FramestapelReplayBuffer",
   "train_freq": 2,
   "gradient_steps": 1,
-  "learning_starts": 800,
-  "n_eval_episodes": 10,
-  "eval_alle_n_steps": 2500,
-  "backbone": "models\\pretrained_vision_20260818_1734.pth",
-  "dauer_sekunden": 286,
+  "learning_starts": 5000,
+  "n_eval_episodes": 5,
+  "eval_alle_n_steps": 10000,
+  "backbone": "models\\pretrained_vision_20260818_2246.pth",
+  "dauer_sekunden": 73573,
   "bsp": true,
   "reward": {
     "version": "v3_rundenzeit",
@@ -75,7 +74,7 @@
         0.0,
         0.0
       ],
-      "start_streuung_m": 0.9
+      "start_streuung_m": 0.0
     },
     "vision": {
       "model": "cv2_numpy_v1",
@@ -96,11 +95,11 @@
   },
   "git": {
     "verfuegbar": true,
-    "commit": "8ae319a9c447756f764459f441a3d1c899b9ef05",
-    "commit_kurz": "8ae319a9c",
+    "commit": "42b23d70da94e9ff7cd7634dcde4852b71d4851a",
+    "commit_kurz": "42b23d70d",
     "branch": "ppo-vergleich",
-    "dirty": true,
-    "geaenderte_dateien": 3
+    "dirty": false,
+    "geaenderte_dateien": 0
   },
   "hardware": {
     "python": "3.13.13",
@@ -123,6 +122,6 @@
     "torch": "2.12.0+cu132",
     "python": "3.13.13"
   },
-  "best_model_step": 2500,
-  "best_model_reward": -847.6794192
+  "best_model_step": 1260000,
+  "best_model_reward": 5080.475324
 }
