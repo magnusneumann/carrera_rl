@@ -16,7 +16,7 @@ from src.utils.virtual_camera import VirtualCamera
 class Carrera2DEnv(gym.Env):
     metadata = {"render_modes": ["human", "hidden"], "render_fps": 30}
 
-    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100), max_steer_change=0.5, start_streuung=0.0):
+    def __init__(self, track_image_path, car_image_path, obs_type="lidar", render_mode="hidden", camera_view="crop", seed=None, longitudinal_model="measured_v2", global_size=(166, 100), max_steer_change=0.5, start_streuung=0.0, start_seite=0.0):
         super().__init__()
 
         self.track_image_path = track_image_path
@@ -51,6 +51,19 @@ class Carrera2DEnv(gym.Env):
         # liegt bei x = 451, also 14 px davor.
         self.start_streuung = float(start_streuung)
         self._gesaet = False   # siehe reset(): der Seed wirkt nur einmal
+        # Seitlicher Versatz beim Start, in Metern nach jeder Seite. 0.0 =
+        # immer auf der Mittellinie.
+        #
+        # Wirkt inhaltlich staerker als die Streuung entlang der Geraden:
+        # weiter hinten zu starten zeigt dieselbe Situation ein paar Frames
+        # frueher, seitlich versetzt zu starten verlangt, auf die Ideallinie
+        # zurueckzufinden. Genau daran hapert es - die Linie des Kamera-
+        # Agenten pendelt ueber die Streckenbreite.
+        #
+        # Platz auf der Geraden: rund 34 px bis zum Aussen- und 33 px bis zum
+        # Innenrand, abzueglich halber Autobreite bleiben +/- 30 px = 0.127 m.
+        # Bei 0.10 m bleiben noch rund 7 px Luft zum Rand.
+        self.start_seite = float(start_seite)
         
         # --- Physikalische Parameter (SI-Einheiten) ---
         self.dt = 1/30.0
@@ -280,6 +293,7 @@ class Carrera2DEnv(gym.Env):
                 "hitbox_px": [self.hitbox_l_px, self.hitbox_w_px],
                 "start_state": list(self.start_state),
                 "start_streuung_m": self.start_streuung,
+            "start_seite_m": self.start_seite,
             },
 
             "vision": self._get_vision_config(),
@@ -322,6 +336,10 @@ class Carrera2DEnv(gym.Env):
             # Auto liegt und die Rundenzaehlung ihren Sinn behaelt. Richtung
             # und Geschwindigkeit bleiben unangetastet.
             self.state[0] -= self.np_random.uniform(0.0, self.start_streuung)
+        if self.start_seite > 0.0:
+            # Nach beiden Seiten, Richtung und Tempo bleiben unveraendert.
+            self.state[1] += self.np_random.uniform(-self.start_seite,
+                                                    self.start_seite)
         
         self._init_render()
         
