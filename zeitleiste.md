@@ -298,6 +298,51 @@ Ziehungen bleibt reproduzierbar.
 
 ---
 
+## Phase 8 — streuende Startpunkte (18.–20.08.)
+
+| Datum | Run | Startpunkt | best | letzte fünf | positiv |
+|---|---|---|---|---|---|
+| 18.08. | `2254` | fest | 5080.5 | 962.5 | 50 von 150 |
+| 20.08. | `2215` | streuend | 1125.2 | 542.7 | 33 von 150 |
+
+Auf dem Papier ein Rückschritt. Tatsächlich das erste ehrliche Messergebnis.
+
+### Der wichtigste Befund dieses Projekts
+
+Beide Modelle unter **beiden** Bedingungen gefahren, je 12 Episoden:
+
+```
+                          fester Start        streuender Start
+2254 (fest trainiert)          5080.5                 -1829.2
+                            9.0 Runden              0.6 Runden
+
+2215 (streuend trainiert)      1027.6                  1545.7
+                            2.0 Runden              3.1 Runden
+```
+
+`2254` sah mit 5080 großartig aus — **aber nur von seinem einen Startpunkt**.
+Aus zufälligen Lagen fällt er auf 0.6 Runden. Er hatte keine Fahrpolitik
+gelernt, sondern eine **auswendig gelernte Trajektorie**.
+
+Das ist derselbe Fehlertyp wie beim Vortrainingsnetz (Abschnitt 8 der
+Erkenntnisse): perfekt auf der geübten Linie, wertlos daneben. Und es erklärt
+rückwirkend den Sprung von 1506 auf 5080 — der Rundenzeit-Bonus belohnt genau
+das Perfektionieren einer wiederholten Runde.
+
+`2215` ist unter beiden Bedingungen mittelmäßig, aber konsistent, und der
+einzige der beiden, der überhaupt fahren kann statt eine Bahn abzuspulen.
+
+### Was daraus folgt
+
+Alle Kamera-Läufe vor dem 20.08. hatten einen festen Startpunkt. Ihre Zahlen
+messen zu einem unbekannten Anteil Auswendiglernen statt Fahren. Das gilt
+besonders für die hohen Werte — je besser die Zahl, desto eher war es eine
+optimierte Einzeltrajektorie.
+
+**Für alles Weitere: von Anfang an mit streuenden Startpunkten trainieren.**
+
+---
+
 # Codeänderungen und ihre Wirkung
 
 ### 26.07. — Rendering von Pygame auf cv2/numpy
