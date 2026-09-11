@@ -1,0 +1,56 @@
+% 00-titlepage.tex
+\thispagestyle{empty}
+\pdfbookmark[0]{Titelblatt}{title}
+
+\begin{titlepage}
+
+  % Logo oben
+  \vspace*{-2.0cm}
+  \begin{center}
+    \centerlogo[4.2cm]{png/hka_logo}%
+  \end{center}
+
+  % Institution
+  \begin{center}
+    \vspace{0.6cm}
+    \LARGE \textbf{\University}\\
+    \vspace{0.3cm}
+    \Large \Faculty\\
+    \vspace{0.2cm}
+    \Large Studiengang \Studiengang
+  \end{center}
+
+  \vspace{1.4cm}
+
+  % Art der Arbeit und Titel
+  \begin{center}
+    \Large \textsc{\DocName}
+
+    \vspace{1.0cm}
+
+    \huge \textbf{\Title}
+
+    \vspace{0.6cm}
+
+    \ifdefstring{\Subtitle}{NoSubtitle}{}{%
+      \large \Subtitle
+    }
+  \end{center}
+
+  % Ein einziges vfill, um die Tabelle nach unten zu drücken
+  \vfill
+
+  % Angaben unten
+  \begin{center}
+    \begin{tabular}{@{}l@{\hspace{0.6cm}}l@{}}
+      \textbf{Vorgelegt von}   & \NameA{} \quad (Matrikelnummer \IdA)  \\
+                               & \NameB{} \quad (Matrikelnummer \IdB)  \\[0.45cm]
+      \textbf{Projektbetreuer} & \Supervisor                           \\
+                               & \University                           \\[0.45cm]
+      \textbf{Abgabedatum}     & \Location, den \DeliveryDate          \\
+    \end{tabular}
+  \end{center}
+
+  \vspace{0.8cm}
+
+\end{titlepage}

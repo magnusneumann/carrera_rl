@@ -1,0 +1,160 @@
+% 04-ergebnisse.tex
+\chapter{Ergebnisse}
+\label{chap:ergebnisse}
+
+Das wesentliche Ergebnis der 2D-Untersuchungen ist keine einzelne Zahl, sondern eine \emph{Pipeline}: eine Abfolge von Arbeitsschritten, mit der sich komplexere Agenten trainieren lassen, und die zugehörigen Prüfkriterien, an denen jeder Schritt gemessen wird. Dieses Kapitel stellt zunächst diese Pipeline in ihrem aktuellen Stand dar, belegt sie anschließend mit den gemessenen Werten und bewertet abschließend ihre Übertragbarkeit in die 3D-Simulation.
+
+\section{Die aktuelle Trainingspipeline}
+\label{sec:ergebnisse_pipeline}
+
+Die Pipeline gliedert sich in vier Stufen. Entscheidend ist nicht nur ihre Reihenfolge, sondern dass jede Stufe eine eigene, unabhängig prüfbare Aussage liefert -- so lässt sich ein Fehlschlag eindeutig zuordnen, statt die gesamte Kette in Frage zu stellen.
+
+\paragraph{Stufe 1 -- Privilegierter Lehrer-Agent.}
+Ein zweischichtiges \ac{MLP} wird mit \ac{PPO} auf der vierdimensionalen Raycast-Beobachtung nach Gleichung~\eqref{eq:lidar_obs} trainiert. Der Agent konvergiert in rund zwölf Minuten und fährt anschließend elf fehlerfreie Runden bei einem Durchschnittstempo von etwa \SI{1.2}{\meter\per\second}.
+
+\emph{Prüfkriterium:} Erreicht der Lehrer die volle Episodenlänge ohne Crash, sind Physik, Belohnungsfunktion, Streckengeometrie und Trainingspipeline lösbar. Erst dann ist eine Kameravariante sinnvoll.
+
+\paragraph{Stufe 2 -- Datenaufzeichnung mit Rausch-Injektion.}
+Der Lehrer fährt die Strecke unter additivem gaußschem Rauschen auf seine Aktionen (Gleichung~\eqref{eq:noise}). Das Fahrzeug driftet dadurch von der Ideallinie ab, und der Lehrer muss aktiv gegensteuern. Aufgezeichnet werden Paare aus visuellem Dreierstapel und der \emph{unverrauschten} Korrekturaktion. Der Datensatz enthält dadurch Rettungsmanöver, die eine perfekte Vorführung nie erzeugen würde.
+
+\emph{Prüfkriterium:} Der Datensatz muss Zustände abseits der Ideallinie enthalten; ein Datensatz ohne Abweichungen erzeugt einen Schüler, der beim ersten eigenen Fehler ausfällt.
+
+\paragraph{Stufe 3 -- Visuelles Vortraining.}
+Ein \ac{CNN} lernt überwacht, die Expertenaktionen aus dem Bildstapel vorherzusagen (Gleichung~\eqref{eq:bc}). Erreicht wird ein MSE von \num{0.0034}. Übertragen werden anschließend ausschließlich die drei Faltungsschichten; die Linear-Schichten werden verworfen.
+
+\emph{Prüfkriterium:} Hier ist besondere Vorsicht geboten. Ein niedriger MSE belegt \emph{nicht}, dass das Netz fahren kann -- in diesem Projekt fuhr kein einziges vortrainiertes Netz eigenständig mehr als \num{230} Frames. Was der Schritt liefert, ist Sehfähigkeit, nicht Fahrwissen. Ob er seinen Aufwand rechtfertigt, ist für \ac{SAC} bis heute nicht belegt (Abschnitt~\ref{subsec:vortraining}).
+
+\paragraph{Stufe 4 -- Online-Feintuning mit SAC.}
+Der so initialisierte Agent wird mit \ac{SAC} auf der Bildbeobachtung weitertrainiert. Maßgeblich sind dabei die in Tabelle~\ref{tab:pipeline_config} zusammengefassten Einstellungen; sie stammen aus dem aktuellsten großen Trainingslauf und sind die Konfiguration, die für Phase~2 übernommen werden soll.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Konfiguration der aktuellen Pipeline-Stufe~4, entnommen aus \texttt{train\_config.json} des Laufs \texttt{09\_Vision\_SAC\_Finetuned\_20260820\_2215}.}
+  \label{tab:pipeline_config}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l l X@{}}
+    \toprule
+    \textbf{Bereich} & \textbf{Einstellung} & \textbf{Begründung} \\
+    \midrule
+    Beobachtung & 3 Graustufenbilder, \num{250} $\times$ \num{150}, aufeinanderfolgend & Auflösung senkt die Wahrnehmungsschwelle auf \SI{0.42}{\meter\per\second}; Spreizung wurde geprüft und verworfen \\
+    Perspektive & globale Vogelperspektive, 4 Graustufen & entspricht der Informationslage eines menschlichen Fahrers \\
+    Aktion      & $[\text{Gas},\ \text{Bremse},\ \text{Lenken}]$, $\Delta\delta \le 0{,}5$ je Frame & entspricht dem realen Fahrzeug, verhindert binäres Stellverhalten \\
+    Algorithmus & \ac{SAC}, \texttt{CnnPolicy} & off-policy, dadurch rund 13-fach mehr Gradientenschritte je Frame als \ac{PPO} \\
+    Lernrate    & \num{5e-5} & höhere Werte zerstören das vortrainierte Backbone \\
+    $\gamma$    & \num{0.99} ($\hat{=}$ \SI{3.3}{\second}) & \num{0.999} führte zum Kollaps (Abschnitt~\ref{subsec:gamma}) \\
+    Puffer      & \num{500000}, \texttt{FramestapelReplayBuffer} & Einzelbildspeicherung statt fertiger Stapel \\
+    Takt        & \texttt{train\_freq} \num{2}, \texttt{gradient\_steps} \num{1}, \texttt{batch\_size} \num{512} & \\
+    Zeitlimit   & \num{2000} Frames, \texttt{handle\_timeout\_termination=True} & Zeitlimit ist kein Endzustand \\
+    Startlage   & Streuung \SI{0.9}{\meter} längs, \SI{0.08}{\meter} quer & verhindert auswendig gelernte Trajektorien \\
+    Auswertung  & \num{10} Episoden alle \num{10000} Schritte & \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Quantitative Ergebnisse}
+\label{sec:ergebnisse_quantitativ}
+
+\subsection*{Anmerkung zur Vergleichbarkeit}
+
+Die zentrale methodische Einsicht dieses Projekts betrifft die Frage, welche Zahlen überhaupt nebeneinander gestellt werden dürfen. Drei Einschränkungen sind zu beachten:
+
+\begin{enumerate}
+  \item \textbf{Über Physikstände hinweg ist kein Zahlenvergleich zulässig.} Läufe unter \texttt{force\_drag\_v1} fuhren ein rund zwanzigfach schnelleres Fahrzeug. Ihre Werte -- einschließlich des Projektbestwerts von \num{3828.2} aus Lauf \texttt{1432} -- sind mit Läufen unter \texttt{measured\_v2} nur qualitativ vergleichbar.
+  \item \textbf{Über Belohnungsversionen hinweg ebenso wenig.} Der Rundenzeit-Bonus feuerte vom 28.07. bis zum 17.08.2026 nie (Abschnitt~\ref{subsec:fallen_phase1}). Nach seiner Reparatur liegen die Belohnungswerte derselben Modelle deutlich höher.
+  \item \textbf{Auch dieselbe Auswertung liefert nicht zwangsläufig dieselben Zahlen.} Die Nachauswertung in Tabelle~\ref{tab:vergleich_aktuell} weist für mehrere Modelle andere Episodenlängen und Rundenzahlen aus als die frühere Messung in Tabelle~\ref{tab:kontrollversuch} -- für Lauf \texttt{2210} etwa \num{759} statt \num{256} Frames. Als Ursachen kommen die reparierte Belohnungsfunktion, zwischenzeitliche Änderungen an der Umgebung und das Auswertungsgerät in Frage; Letzteres ist nachweislich hinreichend, um eine Episode vollständig zu verändern (Abschnitt~\ref{subsec:fallen_phase1}). Welcher Anteil überwiegt, ist \textbf{nicht abschließend geklärt}. Für diesen Bericht gilt daher die Regel, ausschließlich Werte aus \emph{demselben} Auswertungslauf miteinander zu vergleichen.
+\end{enumerate}
+
+Aus diesem Grund werden im Folgenden zwei Größen bevorzugt, die über Belohnungsänderungen hinweg tragen: die Zahl vollständiger Runden und das Durchschnittstempo.
+
+\subsection*{Nachauswertung aller Modelle}
+
+Tabelle~\ref{tab:vergleich_aktuell} zeigt die aktuellste Nachauswertung. Alle Modelle unter \texttt{measured\_v2} wurden dafür in derselben Umgebung, mit derselben Belohnungsversion und auf demselben Gerät neu gefahren.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Nachauswertung aller Modelle unter \texttt{measured\_v2} im aktuellen Codestand, je drei deterministische Episoden vom festen Startpunkt (\texttt{models/vergleich.json}). Die Rundenzahl zählt die erste Zielüberquerung als Start und nicht als Runde.}
+  \label{tab:vergleich_aktuell}
+  \small
+  \begin{tabular}{@{}l l r r r r@{}}
+    \toprule
+    \textbf{Modell} & \textbf{Beobachtung} & \textbf{Reward} & \textbf{Frames} & \textbf{Runden} & \textbf{$\varnothing$ Tempo} \\
+    \midrule
+    \multicolumn{6}{@{}l}{\textit{Privilegierte Beobachtung}} \\
+    Lidar-Experte \texttt{2236} (PPO) & exakt & \num{6711.7} & \num{2000} & \num{11} & \SI{1.23}{\meter\per\second} \\
+    Lidar-Experte \texttt{2223} (PPO) & exakt & \num{6643.6} & \num{2000} & \num{11} & \SI{1.22}{\meter\per\second} \\
+    Lidar-Experte \texttt{1800} (PPO) & exakt & \num{6625.0} & \num{2000} & \num{11} & \SI{1.22}{\meter\per\second} \\
+    Lidar SAC \texttt{1748} (Kontrolle) & exakt & \num{6561.0} & \num{2000} & \num{11} & \SI{1.19}{\meter\per\second} \\
+    Lidar-Experte \texttt{1757} (PPO) & exakt & \num{5093.9} & \num{2000} & \num{10} & \SI{1.04}{\meter\per\second} \\
+    \midrule
+    \multicolumn{6}{@{}l}{\textit{Bildbeobachtung}} \\
+    Vision SAC \texttt{2254} & $250\times150$ & \num{5080.5} & \num{2000} & \num{9} & \SI{1.05}{\meter\per\second} \\
+    Vision SAC \texttt{2210} & $166\times100$ & \num{1516.6} & \num{759}  & \num{3} & \SI{1.00}{\meter\per\second} \\
+    Vision SAC \texttt{2230} & $250\times150$ & \num{1506.2} & \num{769}  & \num{3} & \SI{0.97}{\meter\per\second} \\
+    Vision SAC \texttt{2147} & $166\times100$ & \num{-153.7} & \num{209}  & \num{0} & \SI{0.73}{\meter\per\second} \\
+    Vision SAC \texttt{2331} ($\gamma = 0{,}999$) & $166\times100$ & \num{-349.8} & \num{33} & \num{0} & \SI{0.12}{\meter\per\second} \\
+    Vision SAC \texttt{2307} (gespreizt) & $250\times150$ & \num{-439.5} & \num{76} & \num{0} & \SI{0.22}{\meter\per\second} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Aus dieser Zusammenstellung lassen sich vier Aussagen ableiten.
+
+\paragraph{Die Aufgabe ist lösbar, und zwar sicher.}
+Vier unabhängig trainierte Lehrer-Agenten erreichen reproduzierbar elf Runden bei voller Episodenlänge -- unabhängig vom Algorithmus, denn sowohl \ac{PPO} als auch \ac{SAC} lösen sie. Die Streuung zwischen den Läufen betrifft nur das Tempo (\SIrange{1.04}{1.23}{\meter\per\second}), nicht das grundsätzliche Gelingen.
+
+\paragraph{Bildbeobachtung kostet mindestens den Faktor 70 an Aufwand.}
+Der Lehrer erreicht die volle Episodenlänge nach \num{50000} Schritten und über \num{5000} Belohnungspunkte nach \num{70000} Schritten. Der beste Kamera-Agent benötigt dafür Millionen von Schritten und Stunden bis Tage an Rechenzeit. Der Unterschied zwischen zwölf Minuten und über zwanzig Stunden ist der Preis dafür, aus Pixeln zu lernen.
+
+\paragraph{Der scheinbar beste Kamera-Agent ist der unehrlichste Messwert.}
+Lauf \texttt{2254} steht mit \num{5080.5} Punkten und neun Runden an der Spitze der Bildbeobachtungen. Er wurde jedoch mit festem Startpunkt trainiert und wird hier vom selben festen Startpunkt ausgewertet. Aus zufälligen Startlagen fällt derselbe Agent auf \num{-1829.2} Punkte und \num{0.6} Runden (Tabelle~\ref{tab:startpunkte}). Die neun Runden sind eine abgespulte Trajektorie, keine Fahrfähigkeit. Der mit streuendem Startpunkt trainierte Lauf \texttt{2215} erreicht \num{1545.7} Punkte und \num{3.1} Runden aus zufälligen Lagen -- deutlich weniger auf dem Papier, aber das erste ehrliche Ergebnis der Reihe.
+
+\paragraph{Beide untersuchten Hebel gegen die Wahrnehmungsschwelle sind vermessen.}
+Die Auflösungserhöhung wirkt: Der Ertrag je Frame stieg von \num{1.18} auf \num{2.01}, und die zum Erreichen einer positiven Bilanz nötige Episodenlänge sank von \num{465} auf \num{282} Frames. Das temporale Spreizen wirkt nicht: Lauf \texttt{2307} liegt bei jeder Schrittzahl hinter dem Vergleichslauf und erreicht in \num{150} Auswertungen keinen einzigen positiven Wert.
+
+\subsection*{Was die 2D-Untersuchungen belegt haben}
+
+Zusammengefasst liefert Phase~1 folgende belegte Aussagen:
+
+\begin{enumerate}
+  \item \textbf{Der Engpass ist die Wahrnehmung, nicht der Algorithmus.} Der Kontrollversuch schließt Physik, Belohnungsfunktion, Algorithmus, Replay-Buffer, Zeitlimitbehandlung und Diskontfaktor aus; die Ablationsstudie grenzt die Ursache weiter auf das Geschwindigkeitssignal ein.
+  \item \textbf{Die Wahrnehmungsschwelle ist vorab berechenbar.} Gleichung~\eqref{eq:schwelle} liefert sie aus Auflösung, Maßstab und Bildrate, ohne dass ein einziger Trainingslauf nötig wäre.
+  \item \textbf{\ac{SAC} ist auf Bilddaten \ac{PPO} deutlich überlegen} -- bei gleicher Schrittzahl ebenso wie bei gleichem Zeitbudget.
+  \item \textbf{Der Startpunkt muss streuen}, sonst misst die Auswertung Wiederholbarkeit statt Fahrfähigkeit.
+  \item \textbf{Eine feste Terminalstrafe macht die Belohnungskennzahl bimodal} und damit über weite Strecken des Trainings uninformativ.
+  \item \textbf{Vortraining überträgt Sehfähigkeit, nicht Fahrwissen.} Der praktische Nutzen ist beobachtet, der Beleg für \ac{SAC} steht aus.
+\end{enumerate}
+
+\section{Übertragbarkeit in die 3D-Simulation}
+\label{sec:ergebnisse_3d}
+
+Die abschließende Frage dieses Kapitels lautet, ob die entwickelte Pipeline in der 3D-Simulation anwendbar ist oder dort versagt. Eine gemessene Antwort setzt Läufe in Isaac Sim voraus und kann daher an dieser Stelle noch nicht gegeben werden. Was sich bereits sagen lässt, ist, \emph{woran} die Antwort entschieden wird -- und das ist selbst ein Ergebnis von Phase~1.
+
+\paragraph{Was unverändert überträgt.}
+Algorithmus, Hyperparameter, Aktionsdefinition, die Struktur der Belohnungsfunktion und der speicheroptimierte Replay-Buffer sind von der Simulationsplattform unabhängig. Ebenso überträgt die Reihenfolge der Inbetriebnahme aus Abschnitt~\ref{sec:phase2_umsetzung}, deren wichtigster Schritt lautet: zuerst die Lidar-Variante trainieren.
+
+\paragraph{Was neu bestimmt werden muss.}
+Sämtliche zeitbasierten Größen hängen an der Fahrzeugdynamik und müssen nachgerechnet werden, sobald PhysX andere Geschwindigkeiten liefert: Diskontfaktor, Episodenlänge, Framestapel, $v_{\text{slow}}$ und das Verhältnis von Crash-Strafe zu Fahrertrag.
+
+\paragraph{Das entscheidende Kriterium.}
+Die Wahrnehmungsschwelle nach Gleichung~\eqref{eq:schwelle} ist eine Funktion von Kameraauflösung, Maßstab, Bildrate und Fahrzeuggeschwindigkeit. Sie ist damit \emph{plattformunabhängig} und tritt in Isaac Sim in genau derselben Form erneut auf. Daraus folgt eine vorab prüfbare Aussage: Ergibt die Neuberechnung mit der neuen Kamera und den neuen Geschwindigkeiten wieder Bruchteile eines Pixels je Einzelbild, wird der Kamera-Agent auch dort nicht konvergieren -- und zwar unabhängig davon, wie fotorealistisch die Szene ist. Ergibt sie deutlich mehr als einen Pixel, ist die wesentliche Hürde aus Phase~1 in Phase~2 nicht vorhanden.
+
+Das ist das eigentliche Ergebnis dieser Arbeit: nicht ein Agent, der schnell fährt, sondern ein Kriterium, das \emph{vor} dem Training entscheidet, ob er es je können wird.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Abnahmekriterien für die 3D-Umsetzung. Sie sind aus den Ergebnissen von Phase~1 abgeleitet und in dieser Reihenfolge zu prüfen; die Messwerte trägt Phase~2 nach.}
+  \label{tab:abnahmekriterien}
+  \small
+  \begin{tabularx}{\linewidth}{@{}c X l@{}}
+    \toprule
+    \textbf{Nr.} & \textbf{Kriterium} & \textbf{Ergebnis} \\
+    \midrule
+    1 & Vollgas- und Bremsversuch in Isaac decken sich mit der Videomessung & \textit{offen} \\
+    2 & Wahrnehmungsschwelle nach Gl.~\eqref{eq:schwelle} liegt deutlich unter dem Arbeitsbereich & \textit{offen} \\
+    3 & Rundenzählung feuert nur bei vollständigen Runden & \textit{offen} \\
+    4 & Startlagen streuen, Auswertungsstreuung ist größer als null & \textit{offen} \\
+    5 & Lidar-Agent löst die Aufgabe in vergleichbarer Größenordnung & \textit{offen} \\
+    6 & Kamera-Agent erreicht eine Episodenlänge oberhalb der Amortisationsschwelle & \textit{offen} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}

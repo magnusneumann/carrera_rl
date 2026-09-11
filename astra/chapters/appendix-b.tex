@@ -1,0 +1,129 @@
+% appendix-b.tex
+\chapter{Trainingsläufe, Hyperparameter und offene Belege}
+\label{chap:anhang_b}
+
+\section{Chronologie der Trainingsläufe}
+
+Tabelle~\ref{tab:chronologie} führt die Läufe des Hauptstrangs auf -- Agenten, die aus drei gestapelten Graustufenbildern der Vogelperspektive fahren. Die frühen Architekturversuche vom Juni (Einzelbild, fahrzeugfeste Ansicht, Hybrid) sind methodisch etwas anderes und auf dieser Achse nicht vergleichbar. Der Spaltenwert \enquote{bester Wert} bezeichnet die beste einzelne Zwischenauswertung, \enquote{Ende} den Mittelwert der letzten fünf.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Chronologie der Trainingsläufe des Hauptstrangs. Die waagerechten Linien trennen Gruppen, zwischen denen \emph{kein} Zahlenvergleich zulässig ist.}
+  \label{tab:chronologie}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l l l r r r X@{}}
+    \toprule
+    \textbf{Datum} & \textbf{Lauf} & \textbf{Auflösung} & \textbf{Schritte} & \textbf{bester Wert} & \textbf{Ende} & \textbf{Anmerkung} \\
+    \midrule
+    \multicolumn{7}{@{}l}{\textit{Gruppe A: altes Fahrzeugmodell \texttt{force\_drag\_v1}, SAC}} \\
+    11.06. & \texttt{2246} & $166\times100$ & \num{720}\,k & \num{632.6}  & \num{250.2}   & \\
+    12.06. & \texttt{2347} & $166\times100$ & \num{1.5}\,M  & \num{144.4}  & \num{136.3}   & zwei Größen zugleich verändert, unbrauchbar \\
+    22.06. & \texttt{2139} & $166\times100$ & \num{1.5}\,M  & \num{2427.5} & \num{545.5}   & \SI{11.17}{\hour} \\
+    24.07. & \texttt{1432} & $166\times100$ & \num{2.5}\,M  & \num{3828.2} & \num{-1420.8} & Projektbestwert; Critic-Divergenz \\
+    \midrule
+    \multicolumn{7}{@{}l}{\textit{Gruppe B: altes Fahrzeugmodell, PPO}} \\
+    26.07. & \texttt{1601} & $166\times100$ & \num{2.4}\,M  & \num{-338.8} & \num{-338.8}  & lr \num{3e-4}, mit Backbone \\
+    26.07. & \texttt{2233} & $166\times100$ & \num{2.5}\,M  & \num{-235.7} & ---           & lr \num{3e-4}, ohne Backbone \\
+    26.07. & \texttt{2328} & $166\times100$ & \num{90}\,M   & \num{-3.9}   & \num{-79.5}   & lr \num{1e-4}, \SI{12.15}{\hour} \\
+    \midrule
+    \multicolumn{7}{@{}l}{\textit{Gruppe C: gemessenes Fahrzeugmodell \texttt{measured\_v2}, Reward v3}} \\
+    28.07. & \texttt{2147} & $166\times100$ & \num{2.5}\,M  & \num{-232.0} & \num{-359.5}  & \\
+    29.07. & \texttt{2210} & $166\times100$ & \num{5}\,M    & \num{875.7}  & \num{-315.6}  & Spitzenwert ist ein Ausreißer \\
+    \midrule
+    \multicolumn{7}{@{}l}{\textit{Gruppe D: Diskontfaktor-Experiment}} \\
+    31.07. & \texttt{2331} & $166\times100$ & \num{1.5}\,M  & \num{-349.8} & \num{-354.0}  & $\gamma = 0{,}999$, Kollaps nach \num{250}\,k \\
+    \midrule
+    \multicolumn{7}{@{}l}{\textit{Gruppe E: höhere Auflösung, Einzelbild-Puffer, korrekte Zeitlimitbehandlung}} \\
+    14.08. & \texttt{1748} & Lidar          & \num{500}\,k  & \num{6116.4} & ---           & Kontrollversuch, \SI{54}{\minute}, 11 Runden \\
+    15.08. & \texttt{2230} & $250\times150$ & \num{1.5}\,M  & \num{1181.2} & \num{485.8}   & \SI{20}{\hour}; erster Kamera-Agent mit Runden \\
+    16.08. & \texttt{2307} & $250\times150$ & \num{1.5}\,M  & \num{-134.3} & \num{-217.1}  & gespreizter Stapel, negatives Ergebnis \\
+    \midrule
+    \multicolumn{7}{@{}l}{\textit{Gruppe F: zusätzlich streuende Startpunkte und reparierter Rundenzeit-Bonus}} \\
+    18.08. & \texttt{2254} & $250\times150$ & \num{1.5}\,M  & \num{5080.5} & \num{962.5}   & fester Start -- auswendig gelernte Trajektorie \\
+    20.08. & \texttt{2215} & $250\times150$ & \num{1.5}\,M  & \num{1125.2} & \num{542.7}   & streuender Start, erstes ehrliches Ergebnis \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\paragraph{Durchsatz.}
+Gemessen ergeben sich rund \num{135000} Schritte je Stunde bei $166\times100$ und rund \num{75000} bei $250\times150$. Ein Lauf über \num{1.5}\,Mio.\ Schritte dauert damit etwa \SI{11}{\hour} beziehungsweise \SI{20}{\hour}.
+
+\section{Hyperparameter}
+
+\begin{lstlisting}[caption={Konfiguration des aktuellsten großen SAC-Laufs, gekürzt aus \texttt{train\_config.json}.},label={lst:hyperparameter}]
+Algorithmus      SAC, CnnPolicy (NatureCNN)
+total_timesteps  1 500 000
+gamma            0.99            Horizont 100 Frames = 3.3 s
+learning_rate    5e-05
+batch_size       512
+buffer_size      500 000         FramestapelReplayBuffer
+train_freq       2               ein Gradientenschritt je zwei Umgebungsschritte
+gradient_steps   1
+learning_starts  5 000
+n_envs           1
+n_eval_episodes  10              alle 10 000 Schritte
+
+Beobachtung      3 Graustufenbilder, 250 x 150, aufeinanderfolgend (stride = 1)
+                 globale Vogelperspektive, 4 Graustufen (0/64/128/192)
+                 uint8, Form (3, 150, 250)
+Aktion           [Gas, Bremse, Lenken], Box([0,0,-1], [1,1,1])
+                 Lenkwert aendert sich um hoechstens 0.5 je Frame
+Takt             dt = 1/30 s, Episodenlimit 2000 Frames (66.7 s)
+Startlage        Streuung 0.9 m laengs, 0.08 m quer
+
+Fahrzeugmodell   measured_v2
+  dv/dt = gas * A(v) - brake * a_brake - (r0 + r1 * v)
+  A(v)    = min(0.30 + 0.506 v,  2.05 - 0.717 v)
+  a_brake = 0.167   r0 = 0.05   r1 = 0.336
+  v_max   = 1.90 m/s (Annahme)   rueckwaerts gesperrt
+  mu = 0.3   Radstand 58 mm   max. Lenkwinkel 30 Grad
+
+Reward           v3_rundenzeit
+  Tempo             + 2 * v^2                      jeder Frame
+  Langsam-Strafe    - 4 * (0.6 - v) / 0.6          nur unter 0.6 m/s
+  Lenk-Glaettung    - 0.5 * |Lenkaenderung|        jeder Frame
+  Rundenbonus       + 50                           je Zielueberquerung
+  Rundenzeit        + 5 * (Bestzeit - neue Zeit)   nur bei Verbesserung
+  Crash             - 300 und Episodenende
+  falsche Richtung  - 30, dazu -5*v bei v > 0.1
+  Reward-Boden      Episodenende bei kumuliert <= -3000
+\end{lstlisting}
+
+\section{Offene Belege und noch durchzuführende Experimente}
+
+Die folgenden Nachweise fehlen zum Redaktionsschluss und sind entweder aus vorhandenen Protokollen zu visualisieren oder durch zusätzliche Läufe zu erbringen.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Offene Belege zu Phase~1.}
+  \label{tab:offene_belege}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l X l@{}}
+    \toprule
+    \textbf{Nr.} & \textbf{Beleg} & \textbf{Quelle} \\
+    \midrule
+    B.1 & Verlustkurve des CNN-Vortrainings über \num{20} Epochen, einschließlich des Punktes, ab dem Überanpassung einsetzt & Notebook, Zelle 54 \\
+    B.2 & Gegenüberstellung der TensorBoard-Kurven von Critic-Verlust und Entropiekoeffizient für die Läufe \texttt{1432}, \texttt{1748} und \texttt{2210} & \texttt{tensorboard\_logs/} \\
+    B.3 & \ac{SAC}-Lauf \emph{ohne} Backbone-Transplantation, um den Nutzen des Vortrainings zu belegen oder zu widerlegen & neuer Lauf, 12--24\,h \\
+    B.4 & \ac{PPO}-Abschlusslauf mit Lernrate \num{5e-5} und Backbone -- die letzte offene Zelle im Versuchsplan & Branch \texttt{ppo-vergleich} \\
+    B.5 & Abbildung der Beobachtungsvarianten nebeneinander: globale Ansicht, Ego-Crop und hybride Telemetrieleiste & Notebook, Zellen 21--26 \\
+    B.6 & Abbildung des Demonstrationsdatensatzes: Ideallinie des Lehrers, verrauschte Rollouts, Schülertrajektorie & \texttt{src/eval/fahrlinien.py} \\
+    B.7 & Klärung der Abweichung zwischen Tabelle~\ref{tab:kontrollversuch} und Tabelle~\ref{tab:vergleich_aktuell} durch einen erneuten einheitlichen Auswertungslauf & \texttt{src/eval/vergleich.py} \\
+    B.8 & Videomessung zum Verhalten bei gleichzeitigem Gas und Bremsen & \texttt{Other tools/Auto Parameter messen/} \\
+    B.9 & Klärung des Radstands: \SI{58}{\milli\meter} im Modell gegen \SI{48}{\milli\meter} aus den gemessenen Achsabständen & Fahrzeugvermessung \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Zu klärende Fragen für Phase 2}
+
+Die folgenden Angaben werden für die Beschreibung der 3D-Umsetzung in Abschnitt~\ref{sec:phase2} benötigt:
+
+\begin{enumerate}
+  \item Existiert ein USD-Asset der Carrera-Hybrid-Strecke und des Fahrzeugs in Isaac Sim, und wie ist es entstanden?
+  \item Welche PhysX-Reibwerte ($\mu_{\text{statisch}}$, $\mu_{\text{dynamisch}}$) und welches Reifenmodell wurden hinterlegt?
+  \item Wird eine Deckenkamera (orthografisch oder perspektivisch) oder eine fahrzeugfeste Kamera simuliert, und welche Render-Pipeline erzeugt die Beobachtungsbilder?
+  \item Wie lautet die Wahrnehmungsschwelle nach Gleichung~\eqref{eq:schwelle} unter den 3D-Bedingungen?
+  \item Wurde der Lidar-Agent als erster Schritt trainiert, und wie lange hat er gebraucht?
+  \item Wie verhalten sich die Konvergenzzeiten im Vergleich zur 2D-Umgebung?
+\end{enumerate}

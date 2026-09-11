@@ -1,32 +1,148 @@
-# Doku Tasks & Offene Punkte: Carrera RL Projektbericht
+# Was soll die Doku vermitteln?
+Die Dokumentation soll erklären, woran gearbeitet wurde, wie recherchiert wurde und welche Ergebnisse die Recherche lieferte. Sie soll zeigen, wie das Repository zu verstehen ist, warum die Projektstruktur und der 2-Stufen-Ansatz gewählt wurden, was erprobt und bewiesen wurde, welche Erkenntnisse gewonnen wurden und wie gut das Gesamtziel damit erreicht werden konnte.
 
-Dieses Dokument trackt alle offenen Aufgaben, fehlenden Belege, Re-Trainings, Re-Evaluierungen und formuliert konkrete, strukturierte **Fragen an Claude / den Kollegen (Felix)**, der Zugriff auf die vollständigen Modelle, GPU-Logs und weiteren Trainingsläufe hat.  
----  
-**Eigene Anmerkungen**
-- Die /cite Zitate in der Doku sind keine Funktion sondern werden als "Code" in der Preview angezeigt - statt nur zb Kürzel. Dazu gibt es keine Verlinkung auf das Quellenverzeichnis.
-- Das Superwichitge Buch die RL Bibel auch in Gonkee's Videos zitiert muss als Quelle und erklärung für die Grundlagen herhalten!  
-- Schritt 2 in 2.4 - Beschreibt Behavior cloning - korrekt? wenn ja - einmal erwähnen: (Beahavior Cloning)  
-- Q Werte bei SAC werde nicht erklärt  
-- On- und Off-Policy Bedeutung wird nicht erklärt - warum ist das eine Sampleeffizienter als das andere? Wie lernen beide - was bringt es auch dem Replaybuffer Informationen zu verwenden?  
-- An Claude: Welche Learnings aus den genannten Quellen in Projektbericht 2.6 haben wir in diesem Projekt noch nicht angewendet - was könnte und davon weiterbingen?
+# Die Dokumentation soll umfassen (LaTeX-Vorlage)
+- Deckblatt
+- Selbstständigkeitserklärung
+- Abstract und Zusammenfassung
+- Nach dem Inhaltsverzeichnis: Tabellen-/Abbildungsverzeichnis, Quellenverzeichnis, Anhang
+
+# Inhaltsverzeichnis
+## Kapitel 1: Einleitung
+#### Motivation 
+Physical AI mit Carrera Hybrid (visuelle Fahrzeugsteuerung durch Deckenkamera anstelle von Robotern), Interesse an Reinforcement Learning, begrenzte Rechenressourcen (Notwendigkeit von 2D-Prototyping) und der Trackmania KI Rekord von https://www.youtube.com/@yoshtm.
+
+#### Projektstruktur 
+- Phase 1: 2D-Python-Prototyping & Methodenevaluation:
+  Aufbau einer leichtgewichtigen, hochperformanten 2D-Simulationsumgebung (`Carrera2DEnv`), um fundamentale Fragen zu Beobachtungsräumen, Netzwerkarchitekturen, Lernalgorithmen (PPO vs. SAC), Belohnungsfunktionen und Datenvorverarbeitungsmethoden isoliert und zeiteffizient zu untersuchen.
+- Phase 2: Transfer in die fotorealistische 3D-Simulation:
+  Übertragung der im 2D-Prototyping validierten Best Practices in die fotorealistische 3D-Simulation (NVIDIA Isaac Sim).
+- Ausblick auf Phase 3: Sim-to-Real-Transfer:
+  Erforschung des Sim-to-Real-Gaps auf der realen Carrera-Hybrid-Hardware (Agenten auf die echte Bahn bringen).
+
+#### Ziele dieser Arbeit
+Schnelles 2D-Prototyping, um Konzepte und Probleme mit geringer Rechenlast frühzeitig abzuwägen; Reward Engineering für stabiles Fahren; physikalisch präzises 3D-Simulationstraining mit der entwickelten Pipeline als Basis für einen Sim-to-Real-Transfer in einem Folgeprojekt.
+Einblick in die Projektstruktur: Warum Gymnasium? Wo liegen Modelle und Agenten? Wie wird trainiert? Vorstellung des interaktiven Notebooks, in dem die Arbeit nachvollzogen werden kann (Definition des Environments, physikalische Modellierung, Anpassung des Rewards) – all das soll kompakt aufgezeigt werden (ggf. mit Verweis auf eine begleitende `README.md`).
+
+## Kapitel 2: Grundwissen / Begriffserklärungen
+#### Theoretische Grundlagen
+Verweis auf das empfohlene Einführungsvideo (https://www.youtube.com/watch?v=VnpRp7ZglfA) als anschaulichen Einstieg in das Thema, da ein einzelnes Grundlagenkapitel kaum das gesamte Feld des RL lückenlos abbilden kann.
+Die in der Dokumentation verwendeten Konzepte und Begriffe werden hier präzise definiert (Erklärungen aus dem Standardwerk *Reinforcement Learning: An Introduction* von Sutton & Barto zitieren):
+- MDP und POMDP ausführlich erläutern
+- PPO und SAC: Funktionsweise, Definition einer Policy, On-Policy vs. Off-Policy, modellbasierte vs. modellfreie Verfahren
+- Imitation Learning, Behavioral Cloning, Learning from Demonstration, Covariate Shift
+- Privilegiertes Lernen (Privileged Learning / Learning by Cheating)
+- Frame-Stacking, hybrider Input (Fusion verschiedener Datenformate, z. B. Bilddaten und Skalarparameter)
+- Replay-Buffer, Pretraining, Online- vs. Offline-Training
+
+#### State of the Art (SOTA)
+Aktueller Stand der Forschung im Bereich RL für RC-Cars, Slotcars und Racing Agents:
+- **DIRL (Cai et al. \cite{cai2021vision}):** Beweist die Überlegenheit von hybridem Imitation- und Reinforcement-Learning für reale 1:20-RC-Fahrzeuge.
+- **Gran Turismo Sophy (Wurman et al., Nature 2022 \cite{wurman2022outracing}):** Erreicht übermenschliche Rundenzeiten mittels SAC, asymmetrischen Critic-Architekturen und optimierten Streckenfortschritts-Belohnungen.
+- **VISTA (Amini et al. \cite{amini2020learning}):** Zeigt, dass das gezielte Erleben und Trainieren von OOD-Rettungsmanövern (Out-of-Distribution) für einen robusten Sim-to-Real-Transfer essenziell ist.
+- Verweis auf den Trackmania KI Rekord https://www.youtube.com/@yoshtm
+
+## Kapitel 3: Hauptteil
+### Phase 1: 2D-Prototyping
+#### Idee
+Pragmatischer industrieller Entwicklungsansatz: Was ist bereits vorhanden und was lässt sich sofort beschaffen oder erstellen?
+Das Auto (als Grafik) soll auf der Strecke (als Grafik) per WASD-Tastatur steuerbar sein – später soll der Agent dieselbe Steuerschnittstelle nutzen.
+- **Strecke:** Screenshot des Streckenlayouts aus der offiziellen Carrera-Hybrid-App; Maßstabsübertragung anhand der realen Abmessungen der physischen Bahn.
+- **Fahrzeug & Maße:** Freigestellte Vogelperspektive des Fahrzeugs aus Produktbildern; geometrische Maße und Gewicht direkt am echten Fahrzeug gemessen.
+- **Physikalische Randbedingungen:** Höchstgeschwindigkeit aus Messungen in YouTube-Videos entnommen und über den Maßstab skaliert.
+- **Beschleunigungsvermögen:** Erste Schätzung nach Augenmaß in einem interaktiven WASD-Demo-Modell im Notebook.
+- **Fahrphysik:** Einspurmodell (Bicycle Model), das Befehle für Gas, Bremse und Lenkung verarbeitet und daraus Beschleunigung, Geschwindigkeit und Gierrate berechnet.
+So kann das Prototyping ohne lange Vorlaufzeit starten. Die Spezifikationen werden abschließend in einer Übersichtstabelle zusammengefasst.
+
+#### Umsetzung
+Arbeiten im Jupyter Notebook mit modular ausgelagerten Skripten für Environment, Reward, Training und Utilities.
+Da die Streckenabmessungen in Pixeln und Metern bekannt sind, lässt sich das Fahrzeugbild über den Maßstab exakt skalieren. Mit Unterstützung generativer Coding-Werkzeuge entsteht eine Notebook-Zelle mit interaktiver WASD-Steuerung auf dem Streckenhintergrund.
+
+Vorbereitung für autonome Agenten:
+- Der Agent benötigt Informationen über Fahrtrichtung und Streckenbegrenzungen.
+- Der Agent benötigt eine virtuelle Kamera (globale Deckenansicht und fahrzeugfester Ego-Crop).
+- Der Agent benötigt Informationen über Streckenfortschritt und Ziellinie.
+Mittels OpenCV-Farberkennung werden die Streckenränder und die Mittellinie extrahiert und als `.npy`-Arrays gespeichert (`tracklimits_cv.py` für die Ränder, Generierung der Mittellinie im Notebook). Die Start-/Ziellinie wird manuell per Cursor über die Start-/Endpixel abgelesen und fest hinterlegt.
+
+Entwurf der Belohnungsfunktion:
+- Erste Version bestraft Wandkollisionen und Rückwärtsfahren hart.
+- Schnelleres Fahren steigert den Reward quadratisch.
+- Korrektes Überfahren der Ziellinie bringt hohe Bonuspunkte; Stillstand führt zu Minuspunkten pro Zeitschritt.
+- Überprüfung der Belohnungsfunktion im manuellen WASD-Fenster.
+- Aktuelle Reward Funktion erklären
+
+Erstes einfaches Training (Proof of Concept):
+- Schnellste Methode: Raycasts. Virtuelle Laserstrahlen schneiden die Streckenbegrenzungen und liefern Distanzwerte. Zu Beginn werden 2 Strahlen im Winkel von $\pm 30^\circ$ eingesetzt.
+- Ein erster Agent lernt so bereits nach nur 50.000 Frames einfaches Fahren auf der Strecke.
+- **Erkenntnis:** Das Setup, der Reward, die Streckenbegrenzungen, die Basis-Physik, die Steuerung und die Trainingspipeline funktionieren grundlegend. Von dieser soliden Basis aus können Hypothesen verlässlich getestet werden.
+
+Nächster Schritt: Systematische Erprobung verschiedener Eingabekonzepte:
+- **Vision:** Unterteilt in Single-Frame (statisches Einzelbild) und Stacked-Frames (aktuelles Bild zusammen mit zwei Bildern aus der jüngsten Vergangenheit).
+- Beide Varianten werden sowohl als **globale Draufsicht** auf die gesamte Strecke als auch als **fahrzeugfester Ego-Crop** (Fahrzeug bleibt im Bild zentriert und nach oben ausgerichtet; Strecke bewegt sich relativ zum Auto) getestet.
+- **Hybrider Input:** Kombination der visuellen Ansätze mit Skalarparametern (aktuelle Geschwindigkeit und aktueller Lenkwinkel), da diese bei Single-Frame-Eingaben nicht implizit geschätzt werden können.
+
+Reihenfolge der Tests:
+1. Single-Frame Ego-Crop (`02_Vision_SingleFrame`, Zellen 29–30)
+2. Single-Frame Global (`02_Vision_SingleFrameGlobal`, Zellen 31–32)
+3. Hybrid / Multi-Input (`03_Hybrid_MultiInput`, Zellen 33–36)
+4. Frame-Stacking (`04_Vision_FrameStack_3` & `07_Vision_Global_3Stack`, Zellen 37–40)
+
+Physikalische Überarbeitung auf gemessene Realdynamik (`measured_v2` vs. `force_drag_v1`):
+  Nachträgliche Präzisierung des Fahrzeugmodells anhand von Videoanalysen realer Carrera-Hybrid-Fahrzeuge. Ziel war eine realitätsnahe Annäherung an das spätere 3D-Verhalten, um sicherzustellen, dass der Proof of Concept nicht durch eine unphysikalisch übermotorisierte Modellierung entwertet wird.
+
+Das Subpixel-Wahrnehmungsproblem:
+  Unter der realistischen Physik konvergierten die visuellen Agenten zunächst überhaupt nicht mehr. Ursache ist eine optische Wahrnehmungsschwelle: Bei der reduzierten Bildauflösung ($166 \times 100\text{ px}$) bewegt sich das Fahrzeug aus dem Stand heraus über viele Zeitschritte hinweg um weniger als einen Pixel pro Frame (erst ab ca. $0.64\text{ m/s}$ ist eine Positionsveränderung sichtbar). Da der Agent bei realistischer Trägheit über zahlreiche Frames hinweg kontinuierlich Vollgas geben müsste, bevor im 3-Frame-Stack überhaupt ein optischer Unterschied erkennbar wird, ist er beim Anfahren blind für die eigene Beschleunigung – während die Belohnungsfunktion ihn zeitgleich für zu geringe Geschwindigkeit abstraft.
+
+Technische Lösungsansätze gegen die Wahrnehmungsschwelle:
+  - *Temporales Spreizen des Framestapels:* Abtastung von $t, t-4, t-8$ (anstelle von $t, t-1, t-2$). Dies senkt die Wahrnehmungsschwelle rechnerisch ohne zusätzlichen Rechenaufwand von $0.64\text{ m/s}$ auf $0.16\text{ m/s}$.
+  - *Auflösungserhöhung:* Anhebung der Bildauflösung auf $250 \times 150\text{ Pixel}$.
+
+Reward Engineering – Evolution zu `v3_rundenzeit`:
+  - *Beseitigung des Ratchet-Bugs (Sperrklinke):* Eine relative Bestrafung gegenüber früheren Zufalls-Bestzeiten entwertete Folgerunden mit netto $-250$ Punkten und wurde entfernt.
+  - *Korrektur des Oszillations-Bugs (`w_integral`):* Eine Strafe gegen hochfrequentes Lenkzappeln bestrafte fälschlicherweise auch das kontinuierliche, saubere Halten des Lenkwinkels in Kurven mit bis zu $-625$ Punkten.
+
+Systematischer Algorithmenvergleich (PPO vs. SAC):
+  - *PPO (On-Policy):* Zeigte sich auf Bilddaten als extrem sample-ineffizient (benötigte rund 90 Millionen Schritte), da gesammelte Rollout-Daten nach jedem Gradientenupdate verworfen werden.
+  - *SAC (Off-Policy):* Lernt dank des Replay-Buffers drastisch schneller, da gerenderte Frames mehrfach wiederverwendet werden; neigt bei Bilddaten jedoch zu Instabilitäten durch Critic-Divergenz (beobachtet im Einbruch von Lauf `1432`).
+
+Software- und Buffer-Optimierungen:
+  - *Speicheroptimierter Replay-Buffer (`framestapel_buffer.py`):* Speichert lediglich Einzelbilder und setzt die 3er-Stacks erst on-the-fly beim Mini-Batch-Sampling zusammen; senkt den RAM-Bedarf von 23 GB auf 15 GB.
+  - *Korrektur der Zeitlimit-Behandlung (`handle_timeout_termination=True`):* Verhindert, dass das Erreichen des 2000-Step-Limits fälschlicherweise als katastrophaler Terminalzustand gelernt wird.
+  - *Headless-Rendering via OpenCV:* Umstellung von Pygame auf reines OpenCV/NumPy-Rendering, um das Windows-Fenster-Handle-Limit bei parallelen Trainingsumgebungen zu umgehen. Zugleich Aufdeckung des Antialiasing-Artefakts: Eine Kantenabweichung von lediglich $0.05\,\%$ im Auto-Sprite reichte aus, um die Policy im Pygame-Fenster lahmzulegen.
 
 
----
+#### Erkenntnisse (Gut / Schlecht)
+- Erste Agenten zeigten teils starkes Oszillieren: Lenkung und Gas sprangen binär zwischen $-1$ und $+1$. Für den Realtransfer unbrauchbar, da reale Servos träger sind und vorausschauender gelenkt werden muss.
+- Reifenhaftung (Grip) wurde anfangs vernachlässigt und musste nachgebessert werden (untersteuerndes Verhalten).
+- Einige Input-Varianten konvergieren nur sehr schwer (Singleframe).
+- Bei vielen Parametern und zufälliger Gewichtsinitialisierung scheitert das Lernen oft am "Henne-Ei-Problem": Da der Agent zu Beginn nicht fahren kann, sieht er fast nur Crashs und kann nicht lernen, welche visuellen Merkmale für das Fahren entscheidend sind.
+- Ein vortrainiertes Netz hilft: Trotz des Risikos von Catastrophic Forgetting konvergiert der Agent mit Pretraining (Learning from Demonstration anhand des stochastischen Lidar-Experten) deutlich zuverlässiger als ohne.
+- Der Agent lernt Geschwindigkeit und Beschleunigung aus Bildern nicht so schnell implizit, wie anfängliche Recherchen vermuten ließen.
+- Ziel ist ein Agent, der menschliche Rundenzeiten schlägt und eine vergleichbare Übersicht wie ein menschlicher Fahrer hat (Blick auf die gesamte Bahn). Deshalb wird der global funktionierende Ansatz weiter verfeinert.
 
-## 1. Statusübersicht der Kapitel (Projektbericht)
+#### Fallen und Fehler
+- Die Belohnungsfunktion ist hochgradig sensibel: Änderungen führen oft zu Rückschritten, da neue Strafen oder Boni unvorhergesehene, gegenläufige Effekte auslösen können.
+- "Angst vor der Ziellinie": Visuelle Agenten mieden die Ziellinie, weil sie zuvor gelernt hatten, dass dunkler Asphalt sicher ist und farbliche Abweichungen Begrenzungen darstellen – die karierte Markierung wurde als Hindernis missverstanden.
+- Eine feste Startposition führte zum Einprägen lokaler Minima. Ein Variieren der Startpositionen und das Starten mit Anfangsgeschwindigkeit hätten die Konvergenz beschleunigen können.
 
-| Kapitel | Titel | Status | Offene Aufgaben / Fehlstellen |
-|---|---|---|---|
-| **Deckblatt & Formalia** | Deckblatt, Erklärung, Abstract | 🟡 In Bearbeitung | Matrikelnummern & Abgabedatum eintragen |
-| **Kapitel 1** | Einleitung & Motivation | 🟢 Bereit | Finale Abstimmung der Projektziel-Formulierungen |
-| **Kapitel 2** | Theoretische Grundlagen | 🟢 Bereit | Vollständige Zitationen und Querverweise prüfen |
-| **Kapitel 3** | Methodik & 2D-Simulationsumgebung | 🟢 Bereit | Diagramm Streckengeometrie / HSV-Masken einbinden |
-| **Kapitel 4** | Der 4-Phasen-Trainingsansatz | 🟡 In Bearbeitung | Genaue Datensatzgröße & Pretraining-Loss-Plot ergänzen |
-| **Kapitel 5** | Experimentelle Ergebnisse (Zeitleiste) | 🟡 In Bearbeitung | Fehlende Kurven aus `evaluations.npz` & TensorBoard extrahieren |
-| **Kapitel 6** | Tiefgehende RL-Erkenntnisse | 🟢 Bereit | Subpixel-Herleitung und Buffer-Benchmarks dokumentiert |
-| **Kapitel 7** | Übertragung in die 3D-Simulation (Isaac Sim) | 🔴 Platzhalter | Setup, Szenenaufbau und erste 3D-Ergebnisse fehlen |
-| **Kapitel 8** | Fazit, Learnings & Ausblick | 🟢 Bereit | Auf Basis der 2D-Ergebnisse formuliert; 3D-Fazit ergänzen |
-| **Verzeichnisse** | Quellen-, Abbildungs-, Tabellenverzeichnis | 🟢 Bereit | Automatische Nummerierung und Abgleich |
+### Phase 2: 3D-Deployment (von Claude auszufüllen)
+#### Ideen und Konzepte
+#### Umsetzung
+#### Erkenntnis Gut Schlecht
+#### Fallen und Fehler
+
+### Erkenntnisse – Lessons und Best Practices
+
+## Kapitel 4: Ergebnisse
+2D Untersuchungen haben eine Pipeline augedeckt um Komplexere Agenten zu trainieren. Aktuellste Pipeline erklären.
+Die Pipeline ist in der 3D Simulation anwendbar ODER die Pipeline versagt bei der 3D Simulation.
+## Kapitel 5: Fazit (Phase 1 und 2) & Ausblick (Phase 3)
+Sim to Real Gap - Agenten der schon fahren kann mit Augmentation bombadieren - damit dieser auch bei harten Störungen fahren kann.
+
+
+
+
+
 
 ---
 
@@ -71,11 +187,3 @@ Folgende empirische Belege und Tests müssen noch durchgeführt bzw. aus vorhand
 
 ---
 
-## 4. Checkliste für die Finalisierung des Projektberichts (20–40 Seiten)
-
-- [ ] **1. Deckblatt & Formalia:** Namen, Matrikelnummern, Betreuer, Hochschule Karlsruhe Layout.
-- [ ] **2. Abstract & Kurzfassung:** Prägnante Zusammenfassung der Leitidee (Teacher-Student Distillation) und der Subpixel-Erkenntnis.
-- [ ] **3. Formeln & Mathematische Notation:** Durchgängige Symbole für MDP, POMDP, Bellman-Gleichungen, SAC-Entropie und Reward-Funktionen.
-- [ ] **4. Querverweise & Zitationen:** Alle Paper aus `Quellen und Paper` sauber mit BibTeX-Schlüsseln/Nummern im Text referenziert.
-- [ ] **5. Abbildungen & Tabellen:** Platzhalter durch gerenderte PNG-Grafiken und formatierte Tabellen ersetzen.
-- [ ] **6. PDF-Export:** Kompilierung via `md_to_pdf.py` mit HKA-Kopfzeile, Fußzeile, Seitennummerierung und klickbaren Inhaltslinks testen.

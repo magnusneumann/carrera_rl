@@ -1,0 +1,64 @@
+% 05-fazit.tex
+\chapter{Fazit und Ausblick}
+\label{chap:fazit}
+
+\section{Fazit zu Phase 1}
+\label{sec:fazit_phase1}
+
+Die zu Beginn gestellte Frage lautete, ob sich die konzeptionellen Entscheidungen für einen bildbasierten Rennagenten in einer billigen 2D-Umgebung vorab klären lassen, statt sie in der teuren 3D-Simulation zu erproben. Diese Frage ist zu bejahen -- allerdings anders, als zu Projektbeginn erwartet.
+
+Erwartet worden war eine Rangfolge von Beobachtungsformen und Algorithmen. Tatsächlich geliefert hat die 2D-Phase etwas Grundsätzlicheres: ein \emph{Ausschlusskriterium}. Die Wahrnehmungsschwelle nach Gleichung~\eqref{eq:schwelle} entscheidet vor dem ersten Trainingsschritt, ob eine gewählte Kombination aus Auflösung, Maßstab, Bildrate und Fahrzeugdynamik überhaupt Bewegungsinformation transportiert. Sie ist eine Zeile Rechnung, sie ist plattformunabhängig, und ihre Verletzung war in diesem Projekt die Ursache für mehrere Wochen erfolgloser Trainingsläufe. Dieses Kriterium vorab anzuwenden, ist der unmittelbarste praktische Nutzen dieser Arbeit.
+
+Die drei eingangs formulierten Ziele sind damit wie folgt erreicht:
+
+\begin{description}
+  \item[Schnelles 2D-Prototyping.] Erreicht. Die Umgebung erlaubt einen vollständigen Lehrer-Lauf in zwölf Minuten und einen bildbasierten Lauf in Stunden statt Tagen. Wesentlich wichtiger als die absolute Geschwindigkeit erwies sich jedoch die Möglichkeit, \emph{Kontrollversuche} zu fahren: Der Austausch einer einzigen Komponente bei sonst konstantem Aufbau hat in \SI{54}{\minute} eine Frage beantwortet, an der zuvor wochenlang gearbeitet worden war.
+  \item[Reward Engineering für stabiles Fahren.] Teilweise erreicht. Die Belohnungsfunktion in der Fassung \texttt{v3\_\-rundenzeit} ist nachweislich lösbar -- der Lehrer-Agent erreicht damit elf fehlerfreie Runden. Vier Fehlerklassen wurden reproduziert, verstanden und behoben. Zugleich zeigte sich die grundsätzliche Schwäche des Entwurfs: Eine feste Terminalstrafe macht die Kennzahl bimodal und damit über weite Strecken des Trainings uninformativ. Eine mit der Restzeit skalierende Strafe oder ein reiner Fortschritts-Reward wären die naheliegenden Alternativen und sind nicht erprobt.
+  \item[Physikalisch präzises Fundament.] Erreicht. Das Fahrzeugmodell \texttt{measured\_v2} stammt aus einer Videomessung mit ausgewiesener Belastbarkeit -- die Bremsverzögerung ist gut belegt, die Höchstgeschwindigkeit ist ausdrücklich eine Annahme. Diese Umstellung war zugleich der teuerste und der wertvollste Einzelschritt des Projekts: Sie entwertete sämtliche vorherigen Ergebnisse und deckte dabei das eigentliche Problem auf.
+\end{description}
+
+Die ehrliche Bilanz enthält auch das, was \emph{nicht} erreicht wurde. Es existiert bis heute kein Kamera-Agent, der unter realistischer Physik und aus zufälligen Startlagen konstant Runden fährt; der beste ehrliche Wert liegt bei \num{3.1} Runden. Ein Agent, der menschliche Rundenzeiten schlägt, ist damit deutlich entfernt. Ob das Vortraining seinen Aufwand rechtfertigt, ist für \ac{SAC} nicht belegt. Warum \ac{SAC}-Läufe nach ihrem Höhepunkt einbrechen, ist beschrieben, aber nicht erklärt. Die vollständige Liste der noch zu erbringenden Belege führt Tabelle~\ref{tab:offene_belege}.
+
+Bemerkenswert ist rückblickend, wie viele der gewonnenen Erkenntnisse \emph{negative} Ergebnisse sind: das gescheiterte $\gamma$-Experiment, der wirkungslose gespreizte Framestapel, das vortrainierte Netz, das nicht fahren kann, und die als Auswendiglernen entlarvten Spitzenwerte. Für die Fortsetzung des Vorhabens sind sie wertvoller als die guten Zahlen aus der Anfangsphase, die sich teilweise als Artefakt eines fehlerhaften Fahrzeugmodells erwiesen haben.
+
+\section{Fazit zu Phase 2}
+\label{sec:fazit_phase2}
+
+Phase~2 ist zum Redaktionsschluss in Bearbeitung. Ein belastbares Fazit über die 3D-Umsetzung setzt Messungen in dieser Umgebung voraus und wird von dem für sie verantwortlichen Projektmitglied nachgetragen. Die Grundlage dafür ist vollständig vorbereitet: Die zu übernehmenden Bestandteile, die neu zu bauenden Bestandteile, die Reihenfolge der Inbetriebnahme und die Abnahmekriterien sind in Abschnitt~\ref{sec:phase2} und Tabelle~\ref{tab:abnahmekriterien} festgehalten.
+
+Die aus Phase~1 abgeleitete Prognose lautet: Die Aufgabe ist mit privilegierter Beobachtung lösbar, die Wahrnehmungsschwelle tritt in identischer Form erneut auf und ist vor dem ersten Training zu prüfen, und die Sprödigkeit der Policy gegenüber minimalen Bildunterschieden wird durch Beleuchtung, Schattenwurf und Renderrauschen eher zunehmen. An diesen drei Punkten wird sich messen lassen, ob die entwickelte Pipeline überträgt.
+
+\section{Ausblick: Phase 3 -- Sim-to-Real-Transfer}
+\label{sec:ausblick}
+
+Das mögliche Anschlussprojekt hat ein klar benennbares Ziel: einen in Simulation trainierten Agenten auf die reale Carrera-Hybrid-Bahn zu bringen. Die dabei zu überbrückende Lücke zwischen Simulation und Wirklichkeit -- der \emph{Sim-to-Real-Gap} -- ist in diesem Projekt bereits messbar geworden, wenn auch an einer unerwarteten Stelle.
+
+\paragraph{Der Befund, der den Ausblick bestimmt.}
+Zwischen den beiden verwendeten Renderpfaden unterscheiden sich \SI{0.05}{\percent} der Pixel -- nichts weiter als die Kantenglättung des Fahrzeug-Sprites. Das genügte, um die Ausgabe der Policy vollständig umzuwerfen: Die Lenkvorgabe kippte von $+0{,}30$ auf $-0{,}80$, und derselbe Agent, der im einen Pfad \SI{6.9}{\meter} fuhr, bewegte sich im anderen keinen Zentimeter. Erklärbar ist das über die Größenordnung -- die acht abweichenden Pixel entsprechen ungefähr dem gesamten Fahrzeug in der Beobachtung.
+
+Für den Realtransfer ist dieser Befund vernichtend, und genau deshalb ist er wertvoll. Wenn bereits die Antialiasing-Kante des eigenen Renderers ausreicht, um die Policy lahmzulegen, dann hat eine reale Kamera mit Beleuchtungsschwankungen, Schattenwurf, Sensorrauschen, Bewegungsunschärfe und Übertragungslatenz keine Chance. Die Sprödigkeit ist damit kein Randproblem des Transfers, sondern seine zentrale Herausforderung.
+
+\paragraph{Die Gegenmaßnahme: einen fahrenden Agenten mit Störungen bombardieren.}
+Der vorgezeichnete Weg besteht darin, einen bereits fahrfähigen Agenten \emph{nachträglich} robust zu machen, statt Robustheit von Anfang an zu erzwingen. Konkret bedeutet das, die Beobachtung während des Weitertrainierens systematisch zu stören:
+
+\begin{itemize}
+  \item \textbf{Beobachtungs-Augmentierung:} additives Rauschen, Verschiebungen um wenige Pixel, zufällige Zuschnitte, Helligkeits- und Kontraständerungen. Verfahren wie \emph{DrQ} und \emph{RAD} sind dafür etabliert und in diesem Projekt bislang \emph{vollständig ungenutzt}.
+  \item \textbf{Domain Randomization:} Randomisierung von Reibwerten, Beleuchtung, Kameraposition und -kalibrierung, Fahrzeugmasse und Schwerpunktlage über die Trainingsläufe hinweg.
+  \item \textbf{Latenz und Aktorträgheit:} Modellierung der Funkübertragungsverzögerung und der realen Servostellzeit, die im 2D-Modell nur als Begrenzung der Lenkänderungsrate näherungsweise enthalten ist.
+\end{itemize}
+
+Die Steigerungsstufe dieses Gedankens ist der Übergang von der Störung zur \emph{Rettung}: Ein Agent soll nicht nur kleine Abweichungen verkraften, sondern aus grob gestörten Zuständen zurückfinden. Genau das ist die Aussage von VISTA \cite{amini2020learning}, und genau dafür existiert in diesem Projekt bereits die Grundlage -- der Lidar-Experte ist in \emph{jedem} Zustand abfragbar und kann daher zu jeder gestörten Lage die richtige Rettungsaktion liefern. Damit ist auch der Weg zu \emph{DAgger} offen, dem theoretisch sauberen Gegenmittel gegen den Covariate Shift, das in Phase~1 aus Zeitgründen nicht mehr erprobt wurde.
+
+\paragraph{Weitere Anknüpfungspunkte.}
+Über den Transfer hinaus bleiben aus Phase~1 mehrere Fäden offen, die sich mit vergleichsweise geringem Aufwand aufnehmen lassen:
+
+\begin{itemize}
+  \item Ein \ac{SAC}-Lauf \emph{ohne} Backbone-Transplantation, um endlich zu belegen oder zu widerlegen, dass das Vortraining seinen Aufwand wert ist.
+  \item Die Vorbefüllung des Replay-Buffers mit vollständigen Experten-Übergängen. Da \ac{SAC} off-policy lernt, kann es direkt aus fremden Übergängen lernen -- ein Weg, der im Gegensatz zur reinen Backbone-Übertragung auch Fahrwissen transportieren würde.
+  \item Die Aufnahme der Geschwindigkeit als Skalarwert in die Beobachtung. Die Ablationsstudie legt nahe, dass dies die wirksamste Einzelmaßnahme wäre; sie verändert allerdings die Aufgabenstellung und wäre gegen das Ziel abzuwägen, dem Agenten dieselbe Informationslage zu geben wie einem menschlichen Fahrer.
+  \item Der offene Vergleichslauf \ac{PPO} mit niedriger Lernrate und Backbone, vorbereitet auf dem Branch \texttt{ppo-vergleich}.
+  \item Die Klärung, wie ein realer Fahrtregler auf gleichzeitiges Gas und Bremsen reagiert. Der Agent nutzt beides in über der Hälfte der Frames; das Modell nimmt Superposition an, und das ist eine Annahme, keine Messung. Zehn Sekunden Videoaufnahme mit beiden Triggern würden genügen.
+\end{itemize}
+
+\paragraph{Abschließende Einordnung.}
+Das übergeordnete Ziel -- ein Agent, der ein reales Carrera-Hybrid-Fahrzeug allein anhand eines Deckenkamerabildes schneller über die Bahn steuert als ein Mensch -- bleibt bestehen und ist nicht erreicht. Was in Phase~1 entstanden ist, ist die Vorarbeit dafür: eine kalibrierte Umgebung, eine geprüfte Trainingspipeline, ein Satz reproduzierter Fehlerquellen und vor allem eine Reihe von Kriterien, die vor dem Training entscheiden, ob ein Aufbau überhaupt tragfähig ist. Dass ein erheblicher Teil dieser Erkenntnisse aus Fehlschlägen stammt, mindert ihren Wert nicht -- es ist die übliche Form, in der sie anfallen.

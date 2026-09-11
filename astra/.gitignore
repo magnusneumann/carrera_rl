@@ -1,0 +1,42 @@
+# LaTeX
+*.aux
+*.log
+*.toc
+*.lof
+*.lot
+*.bbl
+*.blg
+*.out
+*.fls
+*.fdb_latexmk
+*.pdf
+*.dvi
+*.ps
+*.thm
+*.nav
+*.snm
+*.vrb
+*.pdfsync
+*.synctex.gz
+*.ilg
+*.nlo
+*.nls
+*.bcf
+
+# Output
+build/
+dist/
+output/
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+# Biber-Steuerdatei, wird bei jedem Lauf neu erzeugt
+*.run.xml

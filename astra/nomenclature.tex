@@ -1,0 +1,45 @@
+% nomenclature.tex
+
+% --- Fahrzeug und Strecke ---
+\nomenclature{$v$}{Fahrgeschwindigkeit [\si{\meter\per\second}]}
+\nomenclature{$v_{\max}$}{Höchstgeschwindigkeit des Fahrzeugmodells [\si{\meter\per\second}]}
+\nomenclature{$a$}{Längsbeschleunigung [\si{\meter\per\second\squared}]}
+\nomenclature{$\delta$}{Lenkwinkel am Rad [\si{\radian}]}
+\nomenclature{$\omega$}{Gierrate [\si{\radian\per\second}]}
+\nomenclature{$L$}{Radstand des Einspurmodells [\si{\meter}]}
+\nomenclature{$\mu$}{Reibwert zwischen Reifen und Fahrbahn [--]}
+\nomenclature{$\Delta t$}{Zeitschritt der Simulation [\si{\second}]}
+\nomenclature{$s_{\text{obs}}$}{Maßstab in der Beobachtung [\si{\px\per\meter}]}
+
+% --- Reinforcement Learning ---
+\nomenclature{$\mathcal{S}$}{Zustandsraum}
+\nomenclature{$\mathcal{A}$}{Aktionsraum}
+\nomenclature{$\Omega$}{Beobachtungsraum}
+\nomenclature{$s_t$}{Zustand zum Zeitschritt $t$}
+\nomenclature{$o_t$}{Beobachtung zum Zeitschritt $t$}
+\nomenclature{$a_t$}{Aktion zum Zeitschritt $t$}
+\nomenclature{$a_t^{*}$}{Expertenaktion zum Zeitschritt $t$}
+\nomenclature{$r_t$}{Belohnung zum Zeitschritt $t$}
+\nomenclature{$G_t$}{diskontierter Ertrag ab Zeitschritt $t$}
+\nomenclature{$\gamma$}{Diskontfaktor [--]}
+\nomenclature{$H$}{wirksamer Planungshorizont [Zeitschritte]}
+\nomenclature{$\pi$}{Policy, Entscheidungsregel des Agenten}
+\nomenclature{$\theta$}{Parameter des neuronalen Netzes}
+\nomenclature{$V^\pi(s)$}{Zustandswertfunktion unter der Policy $\pi$}
+\nomenclature{$Q^\pi(s,a)$}{Aktionswertfunktion unter der Policy $\pi$}
+\nomenclature{$\mathcal{H}$}{Entropie der Policy}
+\nomenclature{$\alpha$}{Entropiekoeffizient in SAC [--]}
+\nomenclature{$\mathcal{D}$}{Demonstrationsdatensatz}
+\nomenclature{$\xi_t$}{injizierter Störterm auf die Expertenaktion}
+\nomenclature{$\sigma$}{Standardabweichung des injizierten Rauschens}
+\nomenclature{$k$}{Anzahl gestapelter Einzelbilder}
+
+% --- Belohnungsfunktion ---
+\nomenclature{$w_v$}{Gewicht des Tempo-Anteils der Belohnung [--]}
+\nomenclature{$v_{\text{slow}}$}{Schwelle der Langsam-Strafe [\si{\meter\per\second}]}
+\nomenclature{$w_{\text{slow}}$}{Gewicht der Langsam-Strafe [--]}
+\nomenclature{$w_{\text{smooth}}$}{Gewicht der Lenk-Glättungsstrafe [--]}
+\nomenclature{$w_{\text{imp}}$}{Gewicht des Rundenzeit-Bonus [--]}
+\nomenclature{$B_{\text{lap}}$}{Bonus je Zielüberquerung [--]}
+\nomenclature{$C_{\text{crash}}$}{Strafe bei Kollision [--]}
+\nomenclature{$C_{\text{wrong}}$}{Strafe bei falscher Fahrtrichtung [--]}

@@ -1,0 +1,205 @@
+% 02-grundlagen.tex
+\chapter{Grundwissen und Begriffserklärungen}
+\label{chap:grundlagen}
+
+\section{Theoretische Grundlagen}
+\label{sec:theorie}
+
+Ein einzelnes Grundlagenkapitel kann das Feld des \acf{RL} nicht lückenlos abbilden -- es umfasst Jahrzehnte an Theorie zwischen dynamischer Programmierung, Stochastik und Optimierung. Für Leserinnen und Leser, die den Einstieg suchen, sei daher ausdrücklich auf das Video \textit{The FASTEST introduction to Reinforcement Learning on the internet} \cite{rlintrovideo} verwiesen, das die Begriffskette von Markov-Entscheidungsprozessen über Monte-Carlo- und Temporal-Difference-Verfahren bis zu Deep-Q-Netzen und Policy-Gradienten in kompakter, anschaulicher Form entwickelt. Es ist nach Einschätzung der Verfasser der schnellste verfügbare Weg, ein tragfähiges Grundverständnis aufzubauen.
+
+Dieses Kapitel beschränkt sich entsprechend darauf, genau die Begriffe präzise zu definieren, die im weiteren Verlauf dieser Arbeit verwendet werden. Die Definitionen folgen, sofern nicht anders angegeben, dem Standardwerk \textit{Reinforcement Learning: An Introduction} von Sutton und Barto \cite{sutton2018reinforcement}.
+
+\subsection{Markov-Entscheidungsprozess (MDP)}
+\label{subsec:mdp}
+
+Die formale Grundlage des \ac{RL} ist der \acf{MDP}. Er beschreibt die Wechselwirkung zwischen einem \emph{Agenten} und einer \emph{Umgebung} als Fünftupel
+\begin{equation}
+  \mathcal{M} = (\mathcal{S}, \mathcal{A}, \mathcal{P}, \mathcal{R}, \gamma),
+  \label{eq:mdp}
+\end{equation}
+mit dem Zustandsraum $\mathcal{S}$, dem Aktionsraum $\mathcal{A}$, der Übergangsverteilung $\mathcal{P}(s' \mid s, a)$, der Belohnungsfunktion $\mathcal{R}(s, a, s')$ und dem Diskontfaktor $\gamma \in [0,1)$.
+
+Der Ablauf ist zyklisch: Der Agent beobachtet den Zustand $s_t$, wählt eine Aktion $a_t$, die Umgebung geht in den Zustand $s_{t+1}$ über und zahlt die Belohnung $r_{t+1}$ aus. Ziel des Agenten ist es, den \emph{diskontierten Ertrag}
+\begin{equation}
+  G_t = \sum_{k=0}^{\infty} \gamma^k\, r_{t+k+1}
+  \label{eq:return}
+\end{equation}
+in Erwartung zu maximieren.
+
+Der namensgebende Kern ist die \emph{Markov-Eigenschaft}: Der Zustand $s_t$ muss alles enthalten, was für die Zukunft relevant ist. Formal gilt
+\begin{equation}
+  P(s_{t+1} \mid s_t, a_t, s_{t-1}, a_{t-1}, \dots) = P(s_{t+1} \mid s_t, a_t).
+  \label{eq:markov}
+\end{equation}
+Die Vergangenheit darf also keine zusätzliche Information über den Folgezustand tragen. Für das vorliegende Projekt ist das eine scharfe Anforderung: Ein Zustand, der die Fahrzeugposition enthält, aber nicht die Geschwindigkeit, verletzt sie, denn aus derselben Position folgen je nach Tempo völlig verschiedene Folgepositionen.
+
+Der Diskontfaktor $\gamma$ steuert, wie weit der Agent in die Zukunft plant. Der wirksame Planungshorizont beträgt näherungsweise
+\begin{equation}
+  H \approx \frac{1}{1 - \gamma}\ \text{Zeitschritte},
+  \label{eq:horizont}
+\end{equation}
+also bei $\gamma = 0{,}99$ und \SI{30}{\hertz} rund \num{100} Einzelbilder oder \SI{3.3}{\second}. Diese scheinbar harmlose Größe erwies sich in diesem Projekt als eine der folgenreichsten Einstellungen überhaupt (Abschnitt~\ref{subsec:gamma}).
+
+\subsection{Partiell beobachtbarer MDP (POMDP)}
+\label{subsec:pomdp}
+
+In realen Systemen ist der wahre Zustand $s_t$ selten messbar. Reibwerte, Radschlupf, exakte Gierraten und die Fahrzeuggeschwindigkeit liegen nicht als Zahl vor, sondern müssen aus dem geschätzt werden, was ein Sensor liefert. Dieser Fall wird als \acf{POMDP} bezeichnet und um zwei Komponenten erweitert:
+\begin{equation}
+  \mathcal{M}_{\text{PO}} = (\mathcal{S}, \mathcal{A}, \mathcal{P}, \mathcal{R}, \gamma, \Omega, \mathcal{O}),
+  \label{eq:pomdp}
+\end{equation}
+mit dem Beobachtungsraum $\Omega$ und der Beobachtungsfunktion $\mathcal{O}(o \mid s)$. Der Agent sieht nur $o_t \in \Omega$, nicht $s_t$.
+
+Ein einzelnes Kamerabild ist der Musterfall einer solchen unvollständigen Beobachtung. Es zeigt, \emph{wo} das Fahrzeug ist, nicht aber, \emph{wie schnell} und in welche Richtung es sich bewegt. Ein optimaler Regler auf dieser Beobachtung existiert im Allgemeinen nicht als einfache Abbildung $o_t \mapsto a_t$, weil derselben Beobachtung verschiedene wahre Zustände mit verschiedenen richtigen Aktionen zugrunde liegen können. Diese Mehrdeutigkeit ist kein technisches Detail, sondern die theoretische Wurzel des zentralen Befunds dieser Arbeit (Abschnitt~\ref{subsec:subpixel}).
+
+Die gängigen Gegenmaßnahmen sind:
+\begin{enumerate}
+  \item die Beobachtung um zeitliche Information zu erweitern (\emph{Frame-Stacking}, Abschnitt~\ref{subsec:framestack}),
+  \item die fehlenden Größen direkt als Zahlenwerte mitzugeben (\emph{hybrider Input}, ebenfalls Abschnitt~\ref{subsec:framestack}),
+  \item ein rekurrentes Netz einzusetzen, das einen internen Zustand mitführt.
+\end{enumerate}
+In diesem Projekt wurden die ersten beiden Wege verfolgt.
+
+\subsection{Policy, On-Policy und Off-Policy, modellfrei und modellbasiert}
+\label{subsec:policy}
+
+Die \emph{Policy} $\pi$ ist die Entscheidungsregel des Agenten, also die Abbildung von Beobachtungen auf Aktionen. Sie kann deterministisch sein, $a = \pi(s)$, oder stochastisch, $a \sim \pi(a \mid s)$. Im tiefen \ac{RL} ist $\pi_\theta$ ein neuronales Netz mit den Parametern $\theta$; \enquote{Lernen} bedeutet, diese Parameter per Gradientenabstieg zu verschieben.
+
+Ein zweiter Baustein ist die \emph{Wertfunktion}. Die Zustandswertfunktion $V^\pi(s)$ gibt den erwarteten Ertrag an, wenn ab $s$ nach $\pi$ gehandelt wird; die Aktionswertfunktion $Q^\pi(s,a)$ tut dasselbe für ein festes erstes Aktionspaar. Verfahren, die beides kombinieren -- ein Netz, das handelt (\emph{Actor}), und eines, das bewertet (\emph{Critic}) --, heißen \emph{Actor-Critic}-Verfahren. Beide in dieser Arbeit verwendeten Algorithmen gehören dazu.
+
+Zwei Unterscheidungen sind für die Algorithmenwahl entscheidend:
+
+\paragraph{Modellfrei gegen modellbasiert.}
+\emph{Modellbasierte} Verfahren lernen ein explizites Modell der Umgebungsdynamik $\hat{\mathcal{P}}$ und planen darin, etwa indem sie Trajektorien vorwärts simulieren. Sie sind dadurch oft sample-effizient, hängen aber von der Güte des gelernten Modells ab. \emph{Modellfreie} Verfahren verzichten darauf und optimieren die Policy ausschließlich aus tatsächlich erlebten Übergängen. In diesem Projekt wurden ausschließlich modellfreie Verfahren eingesetzt, weil die Umgebung selbst bereits sehr schnell ist -- ein gelerntes Weltmodell würde hier die teure Komponente durch eine ungenauere ersetzen, ohne Zeit zu sparen.
+
+\paragraph{On-Policy gegen Off-Policy.}
+Der Unterschied betrifft die Frage, \emph{welche} Erfahrung zum Lernen verwendet werden darf.
+\begin{description}
+  \item[On-Policy] Es darf nur mit Erfahrung gelernt werden, die die \emph{aktuelle} Policy erzeugt hat. Sobald die Gewichte verändert wurden, sind die alten Daten ungültig und werden verworfen.
+  \item[Off-Policy] Es darf auch mit Erfahrung gelernt werden, die eine andere -- etwa eine ältere oder eine fremde -- Policy erzeugt hat. Damit wird ein Gedächtnis in Form eines Replay-Buffers möglich (Abschnitt~\ref{subsec:replay}).
+\end{description}
+Diese Unterscheidung schlägt unmittelbar auf die Sample-Effizienz durch und ist der Grund für den in Abschnitt~\ref{subsec:ppo_sac_vergleich} beschriebenen Leistungsunterschied.
+
+\subsection{PPO und SAC}
+\label{subsec:ppo_sac}
+
+\paragraph{Proximal Policy Optimization (PPO).}
+\ac{PPO} \cite{schulman2017proximal} ist ein modellfreies On-Policy-Verfahren. Es sammelt einen Block an Erfahrung, schätzt daraus Vorteilswerte und führt mehrere Gradientenschritte auf diesem Block aus. Die namensgebende Idee ist eine Begrenzung der Schrittweite im Verteilungsraum: Über das Verhältnis $r_t(\theta) = \pi_\theta(a_t \mid s_t) / \pi_{\theta_{\text{alt}}}(a_t \mid s_t)$ wird die Zielfunktion
+\begin{equation}
+  L^{\text{CLIP}}(\theta) = \mathbb{E}_t\!\left[ \min\!\left( r_t(\theta)\hat{A}_t,\ \operatorname{clip}\!\left(r_t(\theta),\, 1-\epsilon,\, 1+\epsilon\right)\hat{A}_t \right) \right]
+  \label{eq:ppo}
+\end{equation}
+maximiert. Der \texttt{clip}-Term verhindert, dass ein einzelnes Update die Policy zu weit von ihrem Ausgangspunkt entfernt -- die Grundlage für \ac{PPO}s Ruf als robuster, wenig empfindlicher Algorithmus. Der Preis ist, dass nach dem letzten Gradientenschritt der gesamte gesammelte Datenblock verworfen wird.
+
+\paragraph{Soft Actor-Critic (SAC).}
+\ac{SAC} \cite{haarnoja2018soft} ist ein modellfreies Off-Policy-Actor-Critic-Verfahren für kontinuierliche Aktionsräume. Es verfolgt ein erweitertes Ziel, das neben dem Ertrag auch die Entropie der Policy maximiert:
+\begin{equation}
+  J(\pi) = \sum_{t} \mathbb{E}_{(s_t, a_t) \sim \rho_\pi} \left[ r(s_t, a_t) + \alpha\, \mathcal{H}\!\left( \pi(\cdot \mid s_t) \right) \right].
+  \label{eq:sac}
+\end{equation}
+Der Entropieterm $\mathcal{H}$ hält die Policy so zufällig wie mit gutem Ertrag vereinbar und wirkt damit einem vorzeitigen Festfahren in lokalen Optima entgegen; der Faktor $\alpha$ wird automatisch nachgeregelt. \ac{SAC} nutzt zwei unabhängige Critic-Netze und bildet beim Bootstrapping das Minimum beider Schätzungen -- ein Mittel gegen die systematische Überschätzung von $Q$-Werten, wie sie aus dem Umfeld von TD3 \cite{fujimoto2018addressing} bekannt ist. Da \ac{SAC} off-policy arbeitet, kann jede gespeicherte Erfahrung vielfach zum Lernen verwendet werden.
+
+\subsection{Imitation Learning, Behavioral Cloning und Covariate Shift}
+\label{subsec:il}
+
+\paragraph{Imitation Learning und Learning from Demonstration.}
+Beim \acf{IL} lernt ein Agent nicht aus Belohnung, sondern aus dem Vorbild eines Experten. \emph{Learning from Demonstration} bezeichnet dieselbe Idee mit Betonung auf der Datenquelle: Ein Experte -- ein Mensch, ein klassischer Regler oder, wie hier, ein bereits trainierter Agent -- führt die Aufgabe vor, und die dabei entstehenden Zustands-Aktions-Paare bilden den Trainingsdatensatz.
+
+\paragraph{Behavioral Cloning.}
+\acf{BC} ist die einfachste Umsetzung dieser Idee: Das Lernproblem wird zu überwachtem Lernen zurückgeführt. Auf einem Datensatz $\mathcal{D} = \{(s_i, a_i^{*})\}$ von Expertenpaaren wird
+\begin{equation}
+  \mathcal{L}_{\text{BC}}(\theta) = \frac{1}{|\mathcal{D}|} \sum_{(s, a^{*}) \in \mathcal{D}} \left\| \pi_\theta(s) - a^{*} \right\|^2
+  \label{eq:bc}
+\end{equation}
+minimiert. Kein Reward, keine Exploration, keine Wertfunktion -- eine gewöhnliche Regression.
+
+\paragraph{Covariate Shift.}
+Genau darin liegt die grundlegende Schwäche des Verfahrens. Der Datensatz enthält ausschließlich Zustände, in die der \emph{Experte} gerät, also im Wesentlichen die Ideallinie. Weicht der Schüler durch einen kleinen Approximationsfehler davon ab, gelangt er in Zustände, die im Datensatz nicht vorkommen (\emph{Out-of-Distribution}). Dort hat er keine Antwort gelernt, weicht weiter ab, und der Fehler schaukelt sich auf. Ross und Bagnell zeigen, dass der erwartete Verlust dabei nicht linear, sondern quadratisch mit dem Zeithorizont $T$ wächst \cite{ross2011reduction}. Die Verteilung der Zustände unter der Schülerpolicy unterscheidet sich also systematisch von der Trainingsverteilung -- daher der Name \emph{Covariate Shift} oder \emph{Distribution Shift}.
+
+Zwei Gegenmittel sind gebräuchlich. \emph{DAgger} \cite{ross2011reduction} lässt den Schüler fahren, fragt in \emph{seinen} Zuständen den Experten nach der richtigen Aktion und erweitert den Datensatz iterativ. Die in diesem Projekt gewählte, billigere Variante ist die \emph{Rausch-Injektion}: Auf die Expertenaktion wird während der Aufzeichnung ein Störterm addiert,
+\begin{equation}
+  \tilde{a}_t = \operatorname{clip}\left( a_t^{*} + \xi_t,\ -1,\ 1 \right), \qquad \xi_t \sim \mathcal{N}(0, \sigma^2),
+  \label{eq:noise}
+\end{equation}
+sodass das Fahrzeug von der Ideallinie abdriftet und der Experte im Folgeschritt aktiv gegensteuern muss. Gespeichert wird dabei die \emph{unverrauschte} Korrekturaktion $a^{*}_t$. Der Datensatz enthält dadurch Rettungsmanöver, die eine perfekte Vorführung nie erzeugen würde. Amini et al. begründen mit dem Framework VISTA, warum das gezielte Erleben solcher Zustände für einen robusten Realtransfer unverzichtbar ist \cite{amini2020learning}.
+
+\subsection{Privilegiertes Lernen (Learning by Cheating)}
+\label{subsec:privileged}
+
+Beim \emph{privilegierten Lernen} wird das Gesamtproblem in zwei orthogonale Teilprobleme zerlegt, die getrennt und dadurch jeweils erheblich leichter lösbar sind. Chen et al. haben dieses Vorgehen unter dem Namen \textit{Learning by Cheating} \cite{chen2019learning} systematisch untersucht:
+
+\begin{enumerate}
+  \item \textbf{Das Regelungsproblem.} Ein \emph{privilegierter} Lehrer-Agent erhält Zugriff auf Informationen, die zur Laufzeit nicht verfügbar wären -- exakte Abstände, die eigene Geschwindigkeit, die Streckengeometrie. Er muss nur noch lernen, \emph{wie man fährt}, und konvergiert in einem niedrigdimensionalen Zustandsraum sehr schnell.
+  \item \textbf{Das Wahrnehmungsproblem.} Ein Schüler-Agent erhält ausschließlich die realistisch verfügbare Beobachtung -- hier Kamerabilder -- und lernt überwacht, die Ausgaben des Lehrers zu reproduzieren. Er muss nur noch lernen, \emph{was er sieht}.
+\end{enumerate}
+
+Der Vorteil gegenüber direktem visuellem \ac{RL} liegt im Fehlersignal. Ein bildbasierter \ac{RL}-Agent erhält als einzige Rückmeldung eine verrauschte, verzögerte, skalare Belohnung und muss daraus gleichzeitig ableiten, welche Pixel überhaupt bedeutsam sind und welche Aktion richtig war. Der Schüler im privilegierten Aufbau erhält dagegen für jedes Bild einen vollständigen, dichten Zielvektor.
+
+Wichtig für die Einordnung der Ergebnisse in Kapitel~\ref{chap:hauptteil} ist, was dabei tatsächlich übertragen wird. Wird -- wie in diesem Projekt -- nur der Faltungsteil des vortrainierten Netzes in den \ac{RL}-Agenten kopiert, so überträgt sich \emph{Sehfähigkeit}, nicht \emph{Fahrwissen}: Der Agent erbt die Merkmalsextraktion, nicht die Entscheidungsregel. Diese Unterscheidung wird in Abschnitt~\ref{subsec:vortraining} quantitativ belegt.
+
+\subsection{Frame-Stacking und hybrider Input}
+\label{subsec:framestack}
+
+\paragraph{Frame-Stacking.}
+Die verbreitetste Antwort auf die fehlende Zeitinformation eines Einzelbildes ist das Stapeln der letzten $k$ Aufnahmen entlang der Kanaldimension:
+\begin{equation}
+  s_t = \left[ o_t,\ o_{t-1},\ \dots,\ o_{t-k+1} \right] \in \mathbb{R}^{k \times H \times W}.
+  \label{eq:framestack}
+\end{equation}
+Das Verfahren geht auf die Atari-Arbeiten von Mnih et al. \cite{mnih2015human} zurück und ist heute Standard. Die ersten Faltungsschichten können aus der Pixelverschiebung zwischen den Kanälen zeitliche Ableitungen bilden und damit Geschwindigkeit und Drehrate implizit rekonstruieren. Der \ac{POMDP} wird so näherungsweise wieder zu einem \ac{MDP}.
+
+Die stillschweigende Voraussetzung lautet, dass sich zwischen zwei gestapelten Bildern überhaupt etwas \emph{messbar} verschiebt. Genau diese Voraussetzung ist in der vorliegenden Anwendung verletzt; die Herleitung folgt in Abschnitt~\ref{subsec:subpixel}.
+
+Eine Variante ist das \emph{zeitliche Spreizen} (\emph{temporal striding} oder \emph{dilated frame stacking}): Statt $t,\,t-1,\,t-2$ werden Bilder mit größerem Abstand gestapelt, etwa $t,\,t-4,\,t-8$. Der zeitliche Hebel vervierfacht sich damit, ohne dass Rechenzeit oder Speicher zunehmen.
+
+\paragraph{Hybrider Input.}
+Als \emph{hybrider Input} wird die Fusion verschiedener Datenformate in einer Beobachtung bezeichnet -- hier ein Bild zusammen mit einem Vektor von Skalarparametern wie der aktuellen Geschwindigkeit und dem aktuellen Lenkwinkel. Technisch wird das über einen zusammengesetzten Beobachtungsraum umgesetzt: Ein \ac{CNN} verarbeitet den Bildanteil, ein kleines \ac{MLP} den Vektoranteil, und beide Merkmalsvektoren werden vor dem Entscheidungskopf verkettet.
+
+Der Nutzen ist bei Einzelbildeingaben unmittelbar einsichtig, weil dort Geschwindigkeit und Lenkwinkel prinzipiell nicht aus der Beobachtung hervorgehen. Bei gestapelten Bildern ist er weniger offensichtlich, in dieser Anwendung aber nicht geringer: Im Einspurmodell gilt für die Gierrate
+\begin{equation}
+  \omega = \frac{v \cdot \tan\!\left( \delta \right)}{L},
+  \label{eq:einspur_omega}
+\end{equation}
+mit dem Lenkwinkel $\delta$ und dem Radstand $L$. Wer $v$ und $\delta$ exakt kennt, besitzt bereits die vollständige Bewegungsinformation, die ein Bildstapel bestenfalls näherungsweise liefert -- für acht Byte statt für mehrere zehn Kilobyte je Übergang.
+
+\subsection{Replay-Buffer, Pretraining und Online- gegen Offline-Training}
+\label{subsec:replay}
+
+\paragraph{Replay-Buffer.}
+Ein \emph{Replay-Buffer} ist ein Ringspeicher vergangener Übergänge der Form $(s,\,a,\,r,\,s',\,\text{fertig})$. Er ist die technische Voraussetzung dafür, dass Off-Policy-Verfahren ihren Vorteil ausspielen, und erfüllt drei Aufgaben:
+\begin{enumerate}
+  \item \textbf{Wiederverwendung.} Jeder Übergang kann hunderte Male in ein Gradientenupdate eingehen, statt nach einem Update verworfen zu werden.
+  \item \textbf{Entkopplung.} Aufeinanderfolgende Einzelbilder sind nahezu identisch. Zufälliges Ziehen aus dem Puffer bricht diese zeitliche Korrelation auf; andernfalls bestünde ein Minibatch aus nahezu derselben Situation.
+  \item \textbf{Schutz vor Vergessen.} Der Critic soll auch Zustände bewerten können, die die aktuelle Policy nicht mehr ansteuert.
+\end{enumerate}
+Der Preis ist Arbeitsspeicher. Bei Bildbeobachtungen wird der Puffer zur bindenden Ressource -- eine Rechnung dazu findet sich in Abschnitt~\ref{subsec:buffer}.
+
+\paragraph{Pretraining.}
+Als \emph{Pretraining} wird jede Initialisierung von Netzgewichten bezeichnet, die nicht zufällig erfolgt, sondern aus einer vorgelagerten Lernaufgabe stammt. In dieser Arbeit ist das ausschließlich das überwachte Training eines \ac{CNN} auf dem Demonstrationsdatensatz des Lehrer-Agenten; anschließend werden dessen Faltungsschichten in den \ac{RL}-Agenten übertragen (\emph{Backbone-Transplantation}).
+
+\paragraph{Online gegen Offline.}
+\emph{Online-Training} bedeutet, dass der Agent während des Lernens selbst mit der Umgebung interagiert und die dabei entstehenden Daten unmittelbar verwendet -- der Normalfall im \ac{RL}. \emph{Offline-Training} (auch \emph{Batch-RL}) lernt ausschließlich aus einem zuvor aufgezeichneten, festen Datensatz ohne jede weitere Interaktion; der Reiz liegt darin, dass keine riskanten oder teuren Versuchsfahrten nötig sind, die Schwierigkeit in der fehlenden Möglichkeit, eine eigene Hypothese zu überprüfen \cite{fang2022offline}. Die in dieser Arbeit verwendete Pipeline ist in diesem Sinne gemischt: Das Vortraining ist offline und überwacht, die anschließende Optimierung online und bestärkend.
+
+\section{State of the Art}
+\label{sec:sota}
+
+Der für dieses Projekt relevante Ausschnitt des Forschungsstands betrifft \ac{RL} für RC-Fahrzeuge, Slotcars und Rennagenten. Vier Arbeiten prägen die Konzeption dieser Arbeit unmittelbar.
+
+\paragraph{DIRL -- Vision-Based Autonomous Car Racing (Cai et al.).}
+Cai et al. \cite{cai2021vision} stellen mit \emph{Deep Imitative Reinforcement Learning} einen hybriden Ansatz vor, der Imitationslernen zur Initialisierung mit modellbasiertem \ac{RL} zur Selbstverbesserung verbindet, und validieren ihn neben der Simulation auf einem realen RC-Fahrzeug im Maßstab 1:20 mit begrenzter Rechenleistung an Bord. Die Arbeit belegt die Überlegenheit des hybriden Vorgehens gegenüber reinem \ac{IL} wie reinem \ac{RL} in Sample-Effizienz und Fahrleistung und ist damit der unmittelbare Bauplan für die hier verfolgte Teacher-Student-Pipeline.
+
+\paragraph{Gran Turismo Sophy (Wurman et al.).}
+Wurman et al. \cite{wurman2022outracing} erreichen mit dem Agenten \emph{GT Sophy} übermenschliche Rundenzeiten und gewinnen ein Kopf-an-Kopf-Rennen gegen vier der weltbesten Gran-Turismo-Fahrer. Methodisch relevant sind drei Bausteine: der Einsatz modellfreier \ac{SAC}-Varianten für die Fahrzeugregelung am Haftungslimit, ein sorgfältig entworfener Streckenfortschritts-Reward entlang der Mittellinie und eine asymmetrische Actor-Critic-Architektur, bei der der Critic während des Trainings über privilegierte Zustandsinformationen verfügt, die dem Actor nicht zur Verfügung stehen. Der letzte Punkt ist für Phase~2 dieses Projekts von besonderem Interesse (Abschnitt~\ref{sec:phase2_ideen}).
+
+\paragraph{VISTA (Amini et al.).}
+Amini et al. \cite{amini2020learning} zeigen mit dem datengetriebenen Simulator \emph{VISTA}, dass sich robuste End-to-End-Regelungspolitiken aus wenigen realen Fahrten lernen lassen, wenn die Simulation gezielt Trajektorien synthetisiert, die von der aufgezeichneten Ideallinie abweichen. Der Kern der Aussage lautet: Das gezielte Erleben und Trainieren von Out-of-Distribution-Rettungsmanövern ist für einen robusten Sim-to-Real-Transfer nicht optional, sondern essenziell. Dieses Ergebnis begründet die in Abschnitt~\ref{subsec:il} beschriebene Rausch-Injektion.
+
+\paragraph{Trackmania-Agenten.}
+Außerhalb des begutachteten Schrifttums, aber als Machbarkeitsnachweis und Motivationsquelle einschlägig, sind die bildbasierten Trackmania-Agenten des Kanals \textit{yoshtm} \cite{yoshtm}. Sie belegen, dass ein rein lernend erzeugter Fahrer in einem vollwertigen Rennspiel an menschliche Rekordzeiten heranreicht, und liefern zugleich eine anschauliche Vorstellung davon, welchen Trainingsaufwand das erfordert.
+
+\paragraph{Weitere Einordnung.}
+Ergänzend ist der Stand der Technik durch mehrere Übersichtsarbeiten gut erschlossen. Chib und Singh \cite{chib2023recent} systematisieren End-to-End-Fahrverfahren nach Eingabemodalität, Lernparadigma und Bewertungsmethodik; Delavari et al. \cite{delavari2025comprehensive} werten rund einhundert \ac{RL}-Arbeiten im CARLA-Simulator aus und stellen fest, dass über \SI{80}{\percent} weiterhin auf modellfreie Verfahren wie DQN, \ac{PPO} und \ac{SAC} setzen. Ly und Akhloufi \cite{ly2021learning} geben einen Überblick über tiefe \ac{BC}-Verfahren einschließlich ihrer Verteilungsprobleme. Wertbasierte Verfahren sind im Rennkontext ebenfalls erprobt -- Peng et al. \cite{peng2021end} übertreffen mit einem Dueling-Double-DQN im Simulator TORCS menschliche Fahrer bei der Spurhaltung, und Khlifi et al. \cite{khlifi2025novel} vergleichen DQN und DDQN in CARLA --, sie sind für die hier benötigte feinstufige, kontinuierliche Stellgrößenvorgabe jedoch weniger geeignet als Actor-Critic-Verfahren.
+
+Methodisch besonders nahe liegt \emph{SLAV-Sim} von Crewe et al. \cite{crewe2023slav}. Die Autoren begründen dort denselben Ansatz, der auch dieser Arbeit zugrunde liegt: Anstelle eines schwergewichtigen Simulators wird eine leichtgewichtige Umgebung gebaut, die genau die benötigten Sensormodalitäten -- Kamera und Raycasts -- bereitstellt und dadurch schnelle Iteration über \ac{RL}-Algorithmen erlaubt. Für die konkrete Kombination aus Demonstration und Bestärkung sind ferner Huang et al. \cite{huang2021efficient}, die Expertenwissen als Regularisierung über eine KL-Divergenz einbringen, und Chekroun et al. \cite{chekroun2023gri} relevant, die Demonstrationsdaten mit konstant hoher Belohnung direkt in den Replay-Buffer eines Off-Policy-Verfahrens einspeisen. Mohammed et al. \cite{mohammed2024examination} untersuchen speziell die Frage, welchen Beitrag offline vortrainierte Bildencoder für nachgelagertes \ac{RL} leisten -- eine Frage, die sich in diesem Projekt für den transplantierten Backbone in gleicher Form stellt (Abschnitt~\ref{subsec:vortraining}).
+
+Historisch bemerkenswert bleibt schließlich die bereits erwähnte Arbeit von Lange et al. \cite{lange2012autonomous}: Sie löst dieselbe Aufgabenklasse -- kamerabasierte Regelung eines realen Slotcars -- bereits vor über einem Jahrzehnt, allerdings mit einem Autoencoder zur Zustandsreduktion und batchbasiertem Q-Learning statt mit heutigen Actor-Critic-Verfahren.

@@ -1,0 +1,103 @@
+% appendix-a.tex
+\chapter{Repository und interaktive Dokumentation}
+\label{chap:anhang_a}
+
+\section{Aufbau des Repositories}
+
+\begin{lstlisting}[caption={Verzeichnisstruktur des Projekt-Repositories.},label={lst:repo}]
+carrera_rl/
+|
++-- Notebook_prototyping.ipynb   zentrales interaktives Arbeitsbuch
++-- README.md                    Kurzeinstieg
++-- requirements.txt             Python-Abhaengigkeiten
+|
++-- data/                        Streckenbild, Fahrzeug-Sprite, Splines (.npy),
+|                                Demonstrationsdatensaetze (.npz)
++-- models/                      je Lauf ein Verzeichnis mit best_model.zip,
+|                                train_config.json und evaluations.npz
++-- tensorboard_logs/            Diagnosegroessen je Lauf
++-- Quellen und Paper/           wissenschaftliche Literatur
++-- Other tools/
+|   +-- Auto Parameter messen/   Videos und Auswertung der Fahrzeugmessung
+|
++-- src/
+    +-- envs/
+    |   +-- carrera_2d_env.py       Gymnasium-Umgebung: Physik, Lidar, Kamera
+    +-- utils/
+    |   +-- tracklimits_cv.py       OpenCV-Extraktion von Raendern und Mittellinie
+    |   +-- virtual_camera.py       globale und fahrzeugfeste Ansicht, Quantisierung
+    |   +-- reward_func.py          Belohnungsfunktion (Version v3_rundenzeit)
+    |   +-- framestapel_buffer.py   speicheroptimierter Replay-Buffer
+    |   +-- framestapel_gespreizt.py  gespreizter Framestapel (Abstand 1, 2, 4, 8)
+    |   +-- model_free.py           SensorSuite: Raycast-Berechnung
+    |   +-- benchmark.py            Durchsatz- und Rechenaufwandsmessung
+    +-- train/
+    |   +-- lidar_experte.py        Training des privilegierten Lehrer-Agenten
+    +-- eval/
+        +-- vergleich.py            Nachauswertung aller Modelle, einheitlich
+        +-- ablation_lidar.py       gezielte Verfaelschung der Beobachtung
+        +-- bc_fahren.py            vortrainiertes Netz selbst fahren lassen
+        +-- backbone_probe.py       Guete der uebertragenen Faltungsschichten
+        +-- fahrlinien.py           Trajektorienvergleich Experte / Agent
+        +-- rauchtest.py            schneller Funktionstest eines Modells
+\end{lstlisting}
+
+\section{Leitfaden durch das Notebook}
+
+Das \texttt{Notebook\_prototyping.ipynb} umfasst \num{70} Zellen und bildet den Arbeitsverlauf in der Reihenfolge seiner tatsächlichen Entstehung ab. Tabelle~\ref{tab:notebook} ordnet die Zellbereiche den Abschnitten dieses Berichts zu.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Zuordnung der Notebook-Zellen zu den Abschnitten dieses Berichts.}
+  \label{tab:notebook}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l X l@{}}
+    \toprule
+    \textbf{Zellen} & \textbf{Inhalt} & \textbf{Abschnitt} \\
+    \midrule
+    0--2   & Zielsetzung und Brainstorming zu Eingabekonzepten & \ref{sec:ziele} \\
+    3--5   & Streckenbild laden, Fahrzeug initialisieren, manuelles Fahren mit WASD & \ref{subsec:idee} \\
+    6--11  & Streckengrenzen per OpenCV, interaktives HSV-Tuning, Mittelliniengenerierung & \ref{subsubsec:vorbereitung} \\
+    12--15 & Zustände auf Basis der Grenzen, Start/Ziel; Belohnungs- und Raycast-Debugfenster & \ref{subsubsec:reward_entwurf} \\
+    16--20 & Erstes RL-Training (PPO, MLP-Policy auf Raycasts), Agenten beobachten & \ref{subsubsec:erstes_training} \\
+    21--26 & Virtuelle Kamera: fahrzeugfester Crop und globale Ansicht & \ref{subsubsec:vorbereitung} \\
+    27--28 & Trainingszelle Raycasts & \ref{subsubsec:erstes_training} \\
+    29--32 & Single-Frame, fahrzeugfest und global & \ref{subsubsec:eingabekonzepte} \\
+    33--36 & Hybrid / Multi-Input (Bild und Skalarparameter) & \ref{subsubsec:eingabekonzepte} \\
+    37--40 & Framestapel aus drei Bildern, fahrzeugfest und global & \ref{subsubsec:eingabekonzepte} \\
+    41--43 & Beliebigen Agenten weitertrainieren & --- \\
+    44--49 & Beobachtungszellen und Benchmark der Varianten & --- \\
+    50--54 & Teacher-Student-Pipeline: Methodik, Datenaufzeichnung, CNN-Vortraining & \ref{sec:ergebnisse_pipeline} \\
+    55--61 & SAC-Feintuning, große Trainingsläufe, PPO-Vergleichszelle & \ref{subsec:ppo_sac_vergleich} \\
+    62--63 & Vergleich aller Trainingsläufe & \ref{sec:ergebnisse_quantitativ} \\
+    64--65 & Agenten beobachten -- mit der Bildpipeline des Trainings & \ref{subsec:buffer} \\
+    66--67 & Kontrollversuch: SAC auf Lidar unter \texttt{measured\_v2} & \ref{subsec:subpixel} \\
+    68--69 & Beliebigen gespeicherten Agenten unter seiner Originalphysik beobachten & --- \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Wiederkehrende Aufrufe}
+
+\begin{lstlisting}[language=bash,caption={Häufig benötigte Kommandos.},label={lst:kommandos}]
+# virtuelle Umgebung aktivieren
+source .rl_venv/bin/activate
+
+# Trainingsverlaeufe ansehen
+tensorboard --logdir ./tensorboard_logs/
+
+# Lehrer-Agenten neu trainieren
+python -m src.train.lidar_experte --steps 150000
+
+# alle Modelle einheitlich nachauswerten
+python -m src.eval.vergleich --episoden 10
+
+# einzelnes Modell schnell pruefen
+python -m src.eval.rauchtest --model models/<lauf>/best_model.zip
+
+# Ablationsstudie auf der Lidar-Beobachtung
+python -m src.eval.ablation_lidar
+\end{lstlisting}
+
+\noindent
+Hinweis: Große Modellarchive unter \texttt{models/} können aufgrund ihrer Dateigröße nicht vollständig über Git verteilt werden.

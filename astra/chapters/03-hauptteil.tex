@@ -1,0 +1,809 @@
+% 03-hauptteil.tex
+\chapter{Hauptteil}
+\label{chap:hauptteil}
+
+\section{Phase 1: 2D-Prototyping}
+\label{sec:phase1}
+
+\subsection{Idee}
+\label{subsec:idee}
+
+Dem Aufbau der Simulationsumgebung lag ein pragmatischer, industriell geprägter Entwicklungsansatz zugrunde. Die Leitfrage war nicht \enquote{Was wäre die genaueste Modellierung?}, sondern \enquote{Was ist bereits vorhanden, und was lässt sich sofort beschaffen oder erstellen?}. Ziel war ein lauffähiger Prototyp ohne Vorlaufzeit, an dem sich die eigentlichen Forschungsfragen anschließend beantworten lassen.
+
+Das Zielbild dieser ersten Stufe war bewusst einfach: Ein Fahrzeug -- als Grafik -- soll sich auf einer Strecke -- ebenfalls als Grafik -- per WASD-Tastatur steuern lassen. Die Schnittstelle, über die später der Agent fährt, ist dieselbe, über die zunächst ein Mensch fährt. Damit ist von Anfang an sichergestellt, dass sich jede Aussage über die Umgebung von Hand nachprüfen lässt.
+
+Die benötigten Größen wurden aus vier unterschiedlichen Quellen zusammengetragen:
+
+\begin{description}
+  \item[Strecke.] Die offizielle Carrera-Hybrid-App stellt das Streckenlayout als Grafik dar. Ein Bildschirmfoto dieses Layouts dient als Hintergrundbild der Simulation. Die Maßstabsübertragung erfolgt über die an der realen Bahn abgenommenen Abmessungen -- insbesondere die Fahrbahnbreite von \SI{250}{\milli\meter} und die Randstreifen von je \SI{21}{\milli\meter}, die in der Grafik rot (innen) und blau (außen) markiert sind.
+  \item[Fahrzeug und Maße.] Aus Produktbildern eines Onlineshops wurde eine freigestellte Vogelperspektive des Fahrzeugs gewonnen. Die geometrischen Maße und die Masse wurden direkt am realen Fahrzeug gemessen.
+  \item[Physikalische Randbedingungen.] Die Höchstgeschwindigkeit wurde aus Messungen an YouTube-Videos entnommen und über den Maßstab auf die Simulation übertragen.
+  \item[Beschleunigungsvermögen.] Für den ersten Wurf genügte eine Schätzung nach Augenmaß, eingestellt im interaktiven WASD-Demonstrationsmodell des Notebooks. Diese Schätzung wurde später durch eine systematische Videomessung ersetzt -- mit weitreichenden Folgen, die Abschnitt~\ref{subsec:physik} beschreibt.
+\end{description}
+
+Als Fahrphysik dient ein \emph{Einspurmodell} (Bicycle Model). Es nimmt Befehle für Gas, Bremse und Lenkung entgegen und berechnet daraus Längsbeschleunigung, Geschwindigkeit und Gierrate. Die Gierrate folgt Gleichung~\eqref{eq:einspur_omega}; sie wird zusätzlich durch ein Haftungslimit $\omega_{\max} = \mu g / |v|$ begrenzt, sodass das Fahrzeug bei zu hoher Kurvengeschwindigkeit untersteuert, statt der Lenkvorgabe exakt zu folgen. Die Lenkvorgabe selbst ist tiefpassgefiltert: Der Lenkwert darf sich je Zeitschritt um höchstens einen festen Betrag ändern, was die Stellzeit eines realen Servos nachbildet.
+
+Mit diesen Bausteinen konnte das Prototyping ohne lange Vorlaufzeit starten. Tabelle~\ref{tab:spezifikation} fasst die resultierenden Spezifikationen zusammen.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Spezifikationen der 2D-Simulationsumgebung und ihre Herkunft. Werte ohne Quellenangabe stammen aus der Implementierung in \texttt{src/envs/carrera\_2d\_env.py}. \textit{Anmerkung zum Radstand:} Aus der Differenz der gemessenen Achsabstände ergäben sich \SI{48}{\milli\meter}; die Abweichung zum implementierten Wert von \SI{58}{\milli\meter} ist nicht dokumentiert und in Abschnitt~\ref{sec:lessons} als offener Punkt vermerkt.}
+  \label{tab:spezifikation}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l l X@{}}
+    \toprule
+    \textbf{Größe} & \textbf{Wert} & \textbf{Herkunft} \\
+    \midrule
+    \multicolumn{3}{@{}l}{\textit{Strecke}} \\
+    Fahrbahnbreite            & \SI{250}{\milli\meter}   & an der realen Bahn gemessen \\
+    Randstreifen je Seite     & \SI{21}{\milli\meter}    & an der realen Bahn gemessen \\
+    Streckenbild              & \num{830} $\times$ \num{500}\,px & Bildschirmfoto der Carrera-Hybrid-App \\
+    Maßstab                   & \SI{236}{\px\per\meter}   & aus Bildbreite und Realmaß \\
+    Rundenlänge (Mittellinie) & \SI{7.66}{\meter}        & \num{1807}\,px der extrahierten Mittellinie \\
+    Außen- / Innenrand        & \SI{8.55}{\meter} / \SI{6.76}{\meter} & \texttt{outer\_raw\_spline.npy}, \texttt{inner\_raw\_spline.npy} \\
+    Start-/Ziellinie          & $x = 462 \dots 468$\,px  & manuell am Cursor abgelesen, fest hinterlegt \\
+    \midrule
+    \multicolumn{3}{@{}l}{\textit{Fahrzeug}} \\
+    Länge $\times$ Breite     & \SI{98}{\milli\meter} $\times$ \SI{39}{\milli\meter} & am realen Fahrzeug gemessen \\
+    Heck bis Hinterachse      & \SI{23}{\milli\meter}    & am realen Fahrzeug gemessen \\
+    Heck bis Vorderachse      & \SI{71}{\milli\meter}    & am realen Fahrzeug gemessen \\
+    Radstand $L$ im Modell    & \SI{58}{\milli\meter}    & Modellparameter, siehe Anmerkung unter der Tabelle \\
+    Masse                     & \SI{80}{\gram}           & am realen Fahrzeug gewogen \\
+    Max. Lenkwinkel           & \SI{30}{\degree}         & Modellannahme \\
+    Reibwert $\mu$            & \num{0.3}                & Modellannahme (Haftungslimit) \\
+    Kollisionskörper          & \num{20} $\times$ \num{7}\,px & Modellannahme \\
+    \midrule
+    \multicolumn{3}{@{}l}{\textit{Simulation}} \\
+    Zeitschritt $\Delta t$    & $1/30$\,\si{\second}       & entspricht \SI{30}{\hertz} Bildrate \\
+    Episodenlimit             & \num{2000} Frames $\hat{=}$ \SI{66.7}{\second} & Modellannahme \\
+    Aktionsraum               & $[\text{Gas},\ \text{Bremse},\ \text{Lenken}]$ & $[0,1] \times [0,1] \times [-1,1]$ \\
+    Max. Lenkänderung / Frame & \num{0.5}                & entspricht \SI{133}{\milli\second} von Anschlag zu Anschlag \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Umsetzung}
+\label{subsec:umsetzung}
+
+\subsubsection{Arbeitsweise: Notebook mit ausgelagerten Modulen}
+
+Gearbeitet wurde in einem Jupyter-Notebook, dessen wiederverwendbare Bestandteile konsequent in Skripte ausgelagert sind: die Umgebung nach \texttt{src/envs/}, die Belohnungsfunktion, die virtuelle Kamera, der Replay-Buffer und die Streckenextraktion nach \texttt{src/utils/}, die Trainingsläufe nach \texttt{src/train/} und die Auswertungen nach \texttt{src/eval/}. Das Notebook behält dadurch seine Rolle als Arbeits- und Denkverlauf, ohne zum eigentlichen Programm zu werden.
+
+Da die Streckenabmessungen sowohl in Pixeln als auch in Metern bekannt sind, lässt sich das Fahrzeugbild über den Maßstab exakt skalieren: Aus \SI{98}{\milli\meter} Fahrzeuglänge bei \SI{236}{\px\per\meter} folgt ein Sprite von \num{23} $\times$ \num{9}\,Pixeln. Mit Unterstützung generativer Coding-Werkzeuge entstand daraus eine Notebook-Zelle, die ein Fenster öffnet, das Streckenbild als Hintergrund zeichnet und das Fahrzeug per WASD steuerbar macht.
+
+\subsubsection{Vorbereitung für autonome Agenten}
+\label{subsubsec:vorbereitung}
+
+Aus der Zielvorstellung eines autonomen Agenten ergeben sich drei Anforderungen an die Umgebung, die die manuelle Steuerung noch nicht benötigt:
+
+\begin{itemize}
+  \item Der Agent benötigt Informationen über Fahrtrichtung und Streckenbegrenzungen.
+  \item Der Agent benötigt eine virtuelle Kamera -- sowohl als globale Deckenansicht als auch als fahrzeugfester Ego-Ausschnitt.
+  \item Der Agent benötigt Informationen über Streckenfortschritt und Ziellinie.
+\end{itemize}
+
+Die ersten beiden Punkte löst eine Computer-Vision-Vorverarbeitung des Streckenbildes. In \texttt{src/utils/tracklimits\_cv.py} isolieren Farbmasken im HSV-Raum die rote Innen- und die blaue Außenbegrenzung (Abbildung~\ref{fig:streckenextraktion}). Die resultierenden Konturen werden als geglättete Splines abgelegt und sind im weiteren Verlauf die maßgebliche Streckengeometrie -- als Kollisionskörper, als Schnittobjekt für die Raycasts und als Bezug für die Fahrtrichtungsprüfung. Die Mittellinie entsteht im Notebook: Zu jedem Punkt der einen Begrenzung wird der nächstgelegene Punkt der anderen gesucht, auf halber Strecke ein Punkt gesetzt, und alle so entstandenen Punkte werden verbunden und geglättet. Alle Ergebnisse werden als \texttt{.npy}-Arrays gespeichert, damit sie nicht bei jedem Programmstart neu berechnet werden müssen.
+
+Die Start-/Ziellinie wurde manuell per Cursor über ihre Start- und Endpixel abgelesen und als feste Strecke von $(462, 55)$ bis $(468, 114)$ im Code hinterlegt. Eine Überquerung wird als geometrischer Schnitt zwischen dem Kollisionskörper des Fahrzeugs und dieser Linie erkannt.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{png/strecke.png}
+    \caption{Streckenbild aus der Carrera-Hybrid-App}
+    \label{fig:strecke_original}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{png/mask_outer.png}
+    \caption{Extrahierte Außenbegrenzung (HSV-Maske)}
+    \label{fig:strecke_maske}
+  \end{subfigure}
+  \caption{Grundlage der Streckengeometrie. Aus dem Bildschirmfoto (a) isolieren Farbmasken im HSV-Raum die farbig markierten Randstreifen; aus der Maske (b) entstehen die Splines der Streckenbegrenzung und daraus die Mittellinie.}
+  \label{fig:streckenextraktion}
+\end{figure}
+
+Die virtuelle Kamera (\texttt{src/utils/virtual\_camera.py}) stellt zwei Ansichten bereit. Die \emph{globale} Ansicht skaliert das gesamte Streckenbild auf die Beobachtungsgröße herunter und wandelt es in Graustufen. Die \emph{fahrzeugfeste} Ansicht rotiert und schneidet einen Bereich von \num{150} $\times$ \num{150}\,Pixeln um das Fahrzeug so zu, dass dieses stets zentriert und nach oben ausgerichtet erscheint, und skaliert das Ergebnis auf \num{84} $\times$ \num{84}\,Pixel. In beiden Fällen wird die Helligkeit abschließend auf vier Stufen quantisiert.
+
+\subsubsection{Entwurf der Belohnungsfunktion}
+\label{subsubsec:reward_entwurf}
+
+Die erste Fassung der Belohnungsfunktion folgte einer einfachen Intuition: Wandkollisionen und Rückwärtsfahren werden hart bestraft, schnelleres Fahren steigert die Belohnung quadratisch, das korrekte Überfahren der Ziellinie bringt einen deutlichen Bonus, und Stillstand kostet in jedem Zeitschritt Punkte.
+
+Entscheidend für die Qualität dieser Funktion war die Möglichkeit, sie \emph{von Hand} zu überprüfen. Im WASD-Fenster wird die laufende Belohnung eingeblendet, sodass unmittelbar sichtbar ist, welches Verhalten sie tatsächlich prämiert. Mehrere der in Abschnitt~\ref{subsubsec:reward_engineering} beschriebenen Fehler wurden auf diesem Weg gefunden.
+
+Die im weiteren Verlauf der Arbeit maßgebliche Fassung trägt die Versionskennung \texttt{v3\_rundenzeit} und ist in \texttt{src/utils/reward\_func.py} implementiert. Sie setzt sich je Zeitschritt aus folgenden Posten zusammen:
+
+\begin{equation}
+  r_t =
+  \underbrace{2\, w_v\, v^2}_{\text{Tempo}}
+  \;-\; \underbrace{w_{\text{slow}} \max\!\left(0,\ \frac{v_{\text{slow}} - v}{v_{\text{slow}}}\right)}_{\text{Langsam-Strafe}}
+  \;-\; \underbrace{w_{\text{smooth}} \left|\Delta \delta_t\right|}_{\text{Lenk-Glättung}}
+  \;+\; \underbrace{r^{\text{Runde}}_t}_{\text{Ereignisse}}
+  \label{eq:reward}
+\end{equation}
+
+mit den Ereignisanteilen
+\begin{equation}
+  r^{\text{Runde}}_t =
+  \begin{cases}
+    C_{\text{crash}} & \text{bei Kollision (Episode endet)} \\
+    B_{\text{lap}} & \text{bei korrekter Zielüberquerung} \\
+    w_{\text{imp}} \left( T_{\text{best}} - T_{\text{lap}} \right) & \text{bei Unterbieten der eigenen Bestzeit} \\
+    C_{\text{wrong}} - 5\,v & \text{bei Fahrt entgegen der Streckenrichtung.}
+  \end{cases}
+  \label{eq:reward_events}
+\end{equation}
+
+Tabelle~\ref{tab:reward_gewichte} listet die zugehörigen Gewichte. Ergänzend endet eine Episode, sobald die kumulierte Belohnung $-3000$ unterschreitet -- ein Auffangmechanismus gegen Agenten, die dauerhaft stehen bleiben.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Gewichte der Belohnungsfunktion \texttt{v3\_rundenzeit}.}
+  \label{tab:reward_gewichte}
+  \begin{tabular}{@{}l l r@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Bedeutung} & \textbf{Wert} \\
+    \midrule
+    $w_v$                  & Tempo-Faktor (wirkt als $2 w_v v^2$)      & \num{1.0}    \\
+    $v_{\text{slow}}$      & Schwelle des Langsam-Gefälles            & \SI{0.6}{\meter\per\second} \\
+    $w_{\text{slow}}$      & Strafe je Frame bei $v = 0$              & \num{4.0}    \\
+    $w_{\text{smooth}}$    & Strafe je Einheit Lenkänderung           & \num{0.5}    \\
+    $w_{\text{integral}}$  & Oszillationsschutz (abgeschaltet)        & \num{0.0}    \\
+    $B_{\text{lap}}$       & Bonus je Zielüberquerung                 & \num{+50}    \\
+    $w_{\text{imp}}$       & Bonus je Frame Rundenzeitverbesserung    & \num{5.0}    \\
+    $C_{\text{crash}}$     & Strafe bei Kollision                     & \num{-300}   \\
+    $C_{\text{wrong}}$     & Strafe für falsche Fahrtrichtung         & \num{-30}    \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Erstes einfaches Training als Machbarkeitsnachweis}
+\label{subsubsec:erstes_training}
+
+Für den ersten Trainingslauf wurde bewusst die am schnellsten umsetzbare Beobachtungsform gewählt: \emph{Raycasts}. Virtuelle Laserstrahlen gehen vom Fahrzeug aus, werden mit den Streckenbegrenzungen geschnitten und liefern normierte Distanzwerte. Zu Beginn kamen zwei Strahlen im Winkel von $\pm\SI{30}{\degree}$ zum Einsatz; die spätere Fassung verwendet drei Strahlen bei $-\SI{25}{\degree}$, $\SI{0}{\degree}$ und $+\SI{25}{\degree}$. Zusammen mit der normierten Eigengeschwindigkeit ergibt das eine vierdimensionale Beobachtung
+\begin{equation}
+  o_t = \left[ \frac{v}{v_{\max}},\ d_{\text{links}},\ d_{\text{mitte}},\ d_{\text{rechts}} \right] \in \mathbb{R}^4 .
+  \label{eq:lidar_obs}
+\end{equation}
+
+Ein erster Agent mit einem zweischichtigen \ac{MLP} und \ac{PPO} lernte darauf bereits nach rund \num{50000} Frames einfaches Fahren auf der Strecke.
+
+Der inhaltliche Wert dieses Laufs liegt weniger im Ergebnis als in dem, was er ausschließt. Er belegt, dass Setup, Belohnungsfunktion, Streckenbegrenzungen, Basisphysik, Steuerung und Trainingspipeline grundsätzlich funktionieren. Von dieser gesicherten Basis aus lassen sich Hypothesen verlässlich testen, weil ein Fehlschlag nicht mehr auf einen Grundlagenfehler zurückgeführt werden muss. Diese Vorgehensweise -- erst eine billige Referenz herstellen, dann die eigentliche Frage stellen -- erwies sich im späteren Verlauf als die wertvollste methodische Einzelentscheidung des Projekts (Abschnitt~\ref{subsec:subpixel}).
+
+\subsubsection{Systematische Erprobung der Eingabekonzepte}
+\label{subsubsec:eingabekonzepte}
+
+Der nächste Schritt war der systematische Vergleich der Beobachtungsformen. Die Varianten gliedern sich entlang zweier Achsen.
+
+Die erste Achse ist die \textbf{zeitliche Tiefe}. \emph{Single-Frame} bezeichnet ein einzelnes, statisches Bild des aktuellen Zeitpunkts; \emph{Stacked-Frames} bezeichnet das aktuelle Bild zusammen mit zwei Aufnahmen aus der unmittelbaren Vergangenheit, die als zusätzliche Kanäle übergeben werden.
+
+Die zweite Achse ist die \textbf{Perspektive}. Die \emph{globale Draufsicht} bildet die gesamte Strecke ab; das Fahrzeug ist darin ein kleiner, orientierter Sprite. Der \emph{fahrzeugfeste Ego-Crop} hält das Fahrzeug stets in der Bildmitte und nach oben ausgerichtet, während sich die Strecke relativ dazu bewegt.
+
+Quer dazu steht der \textbf{hybride Input}: die Kombination der visuellen Ansätze mit Skalarparametern, konkret der aktuellen Geschwindigkeit und dem aktuellen Lenkwinkel. Der Grund ist der in Abschnitt~\ref{subsec:pomdp} erläuterte: Bei Single-Frame-Eingaben lassen sich diese Größen prinzipiell nicht aus der Beobachtung schätzen.
+
+Getestet wurde in der in Tabelle~\ref{tab:testreihenfolge} angegebenen Reihenfolge.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Reihenfolge der Vergleichsläufe zu den Eingabekonzepten mit den zugehörigen Notebook-Zellen.}
+  \label{tab:testreihenfolge}
+  \small
+  \begin{tabularx}{\linewidth}{@{}c X l l@{}}
+    \toprule
+    \textbf{Nr.} & \textbf{Variante} & \textbf{Laufname} & \textbf{Zellen} \\
+    \midrule
+    1 & Single-Frame, Ego-Crop        & \texttt{02\_Vision\_SingleFrame}       & 29--30 \\
+    2 & Single-Frame, global          & \texttt{02\_Vision\_SingleFrameGlobal} & 31--32 \\
+    3 & Hybrid / Multi-Input          & \texttt{03\_Hybrid\_MultiInput}        & 33--36 \\
+    4 & Frame-Stacking (Crop, global) & \texttt{04\_Vision\_FrameStack\_3}, \texttt{07\_Vision\_Global\_3Stack} & 37--40 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsubsection{Physikalische Überarbeitung auf gemessene Realdynamik}
+\label{subsec:physik}
+
+Die zunächst nach Augenmaß eingestellte Fahrzeugdynamik wurde nachträglich durch eine Videoanalyse realer Carrera-Hybrid-Fahrzeuge ersetzt. Das Ziel war eine realitätsnahe Annäherung an das spätere 3D-Verhalten -- konkret die Absicherung, dass der Machbarkeitsnachweis des Projekts nicht durch eine unphysikalisch übermotorisierte Modellierung entwertet wird. Die beiden Modellstände tragen die Kennungen \texttt{force\_drag\_v1} (geschätzt) und \texttt{measured\_v2} (gemessen).
+
+\paragraph{Messverfahren.}
+Aus Videoaufnahmen mit \SI{30}{\fps} und einer Kalibrierung von \SI{14}{\px} $\hat{=}$ \SI{35}{\milli\meter} wurden Weg-Zeit-Verläufe für Anfahr- und Bremsvorgänge extrahiert und daraus die Kennlinien der Längsdynamik gefittet (Abbildung~\ref{fig:videomessung}). Das resultierende Modell lautet
+\begin{equation}
+  \frac{\mathrm{d}v}{\mathrm{d}t} = \text{gas} \cdot A(v) - \text{brake} \cdot a_{\text{brake}} - \left( r_0 + r_1 v \right),
+  \label{eq:measured_v2}
+\end{equation}
+mit der haftungs- und motorbegrenzten Antriebskennlinie
+\begin{equation}
+  A(v) = \min\left( 0{,}30 + 0{,}506\,v,\ \ 2{,}05 - 0{,}717\,v \right)
+  \label{eq:antriebskennlinie}
+\end{equation}
+sowie $a_{\text{brake}} = \SI{0.167}{\meter\per\second\squared}$, $r_0 = \SI{0.05}{\meter\per\second\squared}$ und $r_1 = \SI{0.336}{\per\second}$.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{png/kinematik_videomessung.png}
+  \caption{Kinematik aus der Videomessung. (A) Weg-Zeit-Messung und Modellfit für Anfahren und zwei Bremsversuche. (B) Daraus abgeleitete Geschwindigkeitsverläufe; die Höchstgeschwindigkeit ist aus diesen Aufnahmen nicht bestimmbar, weil das Fahrzeug im Bildausschnitt nicht sättigt. (C) Vergleich der gemessenen Bremsvorgänge mit dem bis dahin verwendeten Simulationsmodell, das rund vierzehnmal zu stark bremst.}
+  \label{fig:videomessung}
+\end{figure}
+
+\paragraph{Belastbarkeit der Messung.}
+Nicht alle Parameter sind gleich gut belegt, und diese Unterscheidung ist für die Bewertung der Ergebnisse wesentlich:
+
+\begin{itemize}
+  \item \textbf{Gut belegt} ist die Bremsverzögerung. Der gefittete Verlauf $a(v) = 0{,}217 + 0{,}336\,v$ trifft beide Bremsversuche mit einem RMSE von \SIrange{0.4}{0.6}{\centi\meter} über \SI{2.5}{\meter} Fahrstrecke; als konstanter Ersatzwert ergibt sich \SI{0.68}{\meter\per\second\squared}.
+  \item \textbf{Gut belegt} ist ferner der haftungsbegrenzte Ast der Beschleunigung.
+  \item \textbf{Nicht bestimmbar} ist dagegen die Höchstgeschwindigkeit. Ein Profil-Test über $v_\infty$ zeigt einen monoton fallenden Fehler ohne Minimum -- die Daten bevorzugen den Grenzfall konstanter Beschleunigung, weil das Fahrzeug im Bildausschnitt nie sättigt. Der Modellwert $v_{\max} = \SI{1.90}{\meter\per\second}$ ist damit eine \emph{Annahme}; belegt ist lediglich, dass \SI{1.844}{\meter\per\second} erreicht wurden.
+  \item \textbf{Geschätzt} ist der Rollwiderstand $r_0$, da kein Ausrollversuch vorliegt.
+\end{itemize}
+
+Eine Plausibilitätsprüfung schloss zudem einen systematischen Fehler aus: Wäre die Kamera schräg auf die Bahn gerichtet, würde sich der Maßstab über die Bildhöhe ändern und eine Beschleunigung vortäuschen, die es nicht gibt. Da das Fahrzeug eine feste Länge hat, ließ sich das prüfen -- die gemessene Fahrzeuglänge bleibt über die Bildhöhe mit \num{49.2} bis \num{49.4}\,px konstant. Dieselbe Prüfung deckte auf, dass eines der Messvideos unbrauchbar ist, weil dort ein Fremdobjekt im ausgewerteten Bereich liegt.
+
+\paragraph{Auswirkung.}
+Tabelle~\ref{tab:physikvergleich} stellt beide Modelle gegenüber. Die Endgeschwindigkeit war vorher ungefähr richtig, sämtliche Zeitkonstanten dagegen rund zwanzigfach zu kurz. Ursache war eine im Verhältnis zu den angesetzten Kräften viel zu kleine Masse.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Gegenüberstellung der beiden Fahrzeugmodelle. Die Werte für \texttt{measured\_v2} sind Vollgas- beziehungsweise Vollbremswerte aus dem Stand.}
+  \label{tab:physikvergleich}
+  \small
+  \begin{tabularx}{\linewidth}{@{}X l l@{}}
+    \toprule
+    \textbf{Eigenschaft} & \texttt{force\_drag\_v1} & \texttt{measured\_v2} \\
+    \midrule
+    Beschleunigung aus dem Stand & \SI{12.5}{\meter\per\second\squared} & \SI{0.25}{\meter\per\second\squared} \\
+    Bremsverzögerung             & \SI{14.4}{\meter\per\second\squared} & \SI{0.68}{\meter\per\second\squared} \\
+    Höchstgeschwindigkeit        & \SIrange{5}{12}{\meter\per\second} & \SI{1.90}{\meter\per\second} (Annahme) \\
+    Rückwärtsfahren              & erlaubt                              & gesperrt \\
+    Max. Lenkänderung je Frame   & \num{1.0} ($\hat{=}$ \SI{67}{\milli\second}) & \num{0.5} ($\hat{=}$ \SI{133}{\milli\second}) \\
+    $0 \to \SI{1.40}{\meter\per\second}$ & $<\SI{0.2}{\second}$ & \num{119} Frames $\hat{=}$ \SI{3.97}{\second} \\
+    Pixelversatz je Frame ($166\times100$) & \num{8} bis \num{19}\,px & höchstens \num{3}\,px \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsubsection{Das Subpixel-Wahrnehmungsproblem}
+\label{subsec:subpixel}
+
+Unter der realistischen Physik konvergierten die visuellen Agenten zunächst überhaupt nicht mehr. Die Ursache ist eine optische Wahrnehmungsschwelle.
+
+\paragraph{Herleitung.}
+Die Beobachtung entsteht durch Herunterskalieren des \num{830} $\times$ \num{500}\,Pixel großen Streckenbildes auf \num{166} $\times$ \num{100}\,Pixel, also um den Faktor fünf. Der Maßstab in der Beobachtung beträgt damit
+\begin{equation}
+  s_{\text{obs}} = \SI{236}{\px\per\meter} \cdot \frac{166}{830} = \SI{47.2}{\px\per\meter},
+  \label{eq:massstab_obs}
+\end{equation}
+ein Bildpunkt entspricht also \SI{21.2}{\milli\meter}. Damit sich das Fahrzeug zwischen zwei aufeinanderfolgenden Einzelbildern um mindestens einen Bildpunkt verschiebt, ist eine Mindestgeschwindigkeit von
+\begin{equation}
+  v_{\min} = \frac{1}{s_{\text{obs}} \cdot \Delta t} = \frac{\SI{30}{\hertz}}{\SI{47.2}{\px\per\meter}} = \SI{0.64}{\meter\per\second}
+  \label{eq:schwelle}
+\end{equation}
+erforderlich. Tabelle~\ref{tab:subpixel} zeigt den Verlauf.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Bildverschiebung je Einzelbild in der Beobachtung des Agenten, für beide erprobten Auflösungen.}
+  \label{tab:subpixel}
+  \begin{tabular}{@{}l r r@{}}
+    \toprule
+    \textbf{Geschwindigkeit} & \textbf{$166\times100$} & \textbf{$250\times150$} \\
+    \midrule
+    \SI{0.10}{\meter\per\second} & \num{0.16}\,px & \num{0.24}\,px \\
+    \SI{0.30}{\meter\per\second} & \num{0.47}\,px & \num{0.71}\,px \\
+    \SI{0.50}{\meter\per\second} & \num{0.79}\,px & \num{1.18}\,px \\
+    \SI{0.80}{\meter\per\second} & \num{1.26}\,px & \num{1.90}\,px \\
+    \SI{1.90}{\meter\per\second} & \num{2.99}\,px & \num{4.50}\,px \\
+    \midrule
+    \textbf{Schwelle (1\,px/Frame)} & \SI{0.64}{\meter\per\second} & \SI{0.42}{\meter\per\second} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Warum das den Agenten blockiert.}
+Das Fahrzeug ist in der Beobachtung lediglich \num{4.6} $\times$ \num{1.8}\,Pixel groß. Es startet aus dem Stand und benötigt unter \texttt{measured\_v2} rund \SI{2.8}{\second} -- etwa \num{84} Einzelbilder --, um \SI{0.6}{\meter\per\second} zu erreichen. In diesem gesamten Bereich sind die drei gestapelten Bilder \emph{identisch}: Der Bildstapel enthält dieselbe Information dreimal. Der Agent müsste über viele Zeitschritte hinweg kontinuierlich Vollgas geben, bevor überhaupt ein optischer Unterschied entsteht, aus dem er auf seine eigene Beschleunigung schließen könnte. Er ist beim Anfahren also blind für seine eigene Bewegung -- und wird zeitgleich von der Belohnungsfunktion für zu geringe Geschwindigkeit bestraft, denn $v_{\text{slow}} = \SI{0.6}{\meter\per\second}$ liegt fast exakt auf der Wahrnehmungsschwelle. Insgesamt verbringt der Agent rund ein Drittel seiner Zeit unterhalb dieser Schwelle.
+
+Bemerkenswert ist die Einordnung: Das alte Fahrzeugmodell hat dieses Problem nicht verursacht, sondern \emph{verdeckt}. Bei \SIrange{5}{12}{\meter\per\second} verschob sich das Fahrzeug um \num{8} bis \num{19}\,Pixel je Einzelbild, sodass der Bildstapel Bewegung unübersehbar zeigte. Die guten Zahlen aus der ersten Projektphase sind damit teilweise ein Artefakt dieses Modellierungsfehlers.
+
+\paragraph{Der Kontrollversuch als Beweis.}
+\label{sec:kontrollversuch}
+Um auszuschließen, dass die Ursache doch tiefer liegt -- etwa in einer Instabilität von \ac{SAC}, in der Belohnungsfunktion oder in der trägeren Physik --, wurde am 14.08.2026 ein Kontrollversuch gefahren (\texttt{12\_Lidar\_SAC\_Kontrolle\_20260814\_1748}). Alle Randbedingungen blieben konstant: Physik \texttt{measured\_v2}, Belohnungsfunktion \texttt{v3\_rundenzeit}, Algorithmus \ac{SAC}, dieselbe Pufferkonfiguration, dieselbe Zeitlimitbehandlung, derselbe Diskontfaktor. Getauscht wurde ausschließlich die Beobachtung: exakte Zahlenwerte nach Gleichung~\eqref{eq:lidar_obs} statt \num{166} $\times$ \num{100}\,Pixel.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Kontrollversuch, Auswertungsstand 14.08.2026. Alle Modelle wurden zur Vergleichbarkeit in derselben Umgebung und mit demselben Belohnungsstand neu gefahren (\texttt{python -m src.eval.vergleich}). Die Zahlen sind untereinander, aber nicht mit der späteren Nachauswertung in Tabelle~\ref{tab:vergleich_aktuell} vergleichbar -- siehe die Anmerkung zur Vergleichbarkeit in Abschnitt~\ref{sec:ergebnisse_quantitativ}.}
+  \label{tab:kontrollversuch}
+  \small
+  \begin{tabular}{@{}l l r r r r@{}}
+    \toprule
+    \textbf{Modell} & \textbf{Beobachtung} & \textbf{Reward} & \textbf{Frames} & \textbf{Runden} & \textbf{$\varnothing$ Tempo} \\
+    \midrule
+    Lidar-Experte (PPO)        & exakt              & \num{6401.7}  & \num{2000} & \num{11} & \SI{1.22}{\meter\per\second} \\
+    \textbf{Lidar SAC \texttt{1748}} & \textbf{exakt} & \textbf{\num{6116.4}} & \textbf{\num{2000}} & \textbf{\num{11}} & \SI{1.19}{\meter\per\second} \\
+    Vision SAC \texttt{2210}   & $166\times100$\,px & \num{-30.3}   & \num{256}  & \num{0}  & \SI{0.81}{\meter\per\second} \\
+    Vision SAC \texttt{2147}   & $166\times100$\,px & \num{-266.5}  & \num{174}  & \num{0}  & \SI{0.62}{\meter\per\second} \\
+    Vision SAC \texttt{2331}   & $166\times100$\,px & \num{-349.8}  & \num{33}   & \num{0}  & \SI{0.12}{\meter\per\second} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Das Ergebnis ist eindeutig (Tabelle~\ref{tab:kontrollversuch}): Der Agent löst die Aufgabe. Nach \num{50000} Schritten erreicht er die vollen \num{2000} Frames, nach \num{70000} Schritten über \num{5000} Belohnungspunkte, und der gesamte Lauf über \num{500000} Schritte dauert \SI{54}{\minute}. Der Kamera-Agent steht nach \num{5000000} Schritten und \SI{27}{\hour} bei null Runden. Damit sind Physik, Belohnungsfunktion, Algorithmus, Replay-Buffer, Zeitlimitbehandlung und Diskontfaktor als Ursache ausgeschlossen. Übrig bleibt die Wahrnehmung.
+
+\paragraph{Ablation: Welcher Teil der Wahrnehmung fehlt?}
+Der Kontrollversuch allein beantwortet noch nicht, \emph{welcher} Anteil der Beobachtung entscheidend ist -- die Lidar-Beobachtung liefert zwei Dinge zugleich: die exakte Geschwindigkeit \emph{und} die Streckengeometrie als fertige Abstände. Eine Ablationsstudie (\texttt{src/eval/ablation\_lidar.py}) trennt beides, indem dem fertig trainierten Lidar-Agenten gezielt Teile seiner Beobachtung verdorben werden, während die Physik unverändert weiterläuft (Tabelle~\ref{tab:ablation}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Ablation am trainierten Lidar-Agenten: gezielte Verfälschung einzelner Beobachtungsanteile.}
+  \label{tab:ablation}
+  \small
+  \begin{tabular}{@{}l r r r r@{}}
+    \toprule
+    \textbf{Variante} & \textbf{Reward} & \textbf{Frames} & \textbf{Runden} & \textbf{$\varnothing$ Tempo} \\
+    \midrule
+    unverändert                          & \num{6116.4}  & \num{2000} & \num{11.0} & \SI{1.19}{\meter\per\second} \\
+    $v$ auf null gesetzt                 & \num{-347.5}  & \num{146}  & \num{0.0}  & \SI{0.53}{\meter\per\second} \\
+    $v$ eingefroren auf \SI{0.5}{\meter\per\second} & \num{-191.4} & \num{187} & \num{0.0} & \SI{0.71}{\meter\per\second} \\
+    $v$ durch Rauschen ersetzt           & \num{-500.4}  & \num{455}  & \num{0.7}  & \SI{0.51}{\meter\per\second} \\
+    \textbf{$v$ grob gerastert (4 Stufen)} & \textbf{\num{-197.9}} & \textbf{\num{192}} & \textbf{\num{0.0}} & \SI{0.70}{\meter\per\second} \\
+    Abstände auf null, $v$ exakt         & \num{-3100.5} & \num{750}  & \num{0.0}  & \SI{0.00}{\meter\per\second} \\
+    Abstände verrauscht, $v$ exakt       & \num{1018.7}  & \num{664}  & \num{2.7}  & \SI{0.73}{\meter\per\second} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Zwei Befunde folgen daraus. Erstens trägt die \textbf{Geschwindigkeit} die Leistung: Jede Verfälschung -- null, eingefroren, verrauscht oder auch nur auf vier Stufen quantisiert -- kostet über \SI{100}{\percent} des Ertrags und führt zu null Runden. Zweitens ist die \textbf{Geometrie robuster}: Verrauschte Abstände bei exakter Geschwindigkeit ergeben noch \num{1018.7} Punkte und \num{2.7} Runden. Der quantitative Anschluss ist auffällig -- die Kamera-Agenten liegen mit $-266.5$, $-349.8$ und $-30.3$ genau im Bereich \enquote{Lidar-Agent mit beschädigtem Geschwindigkeitssignal}. Genau das sagt die Subpixel-Rechnung voraus.
+
+Die Grenze dieser Aussage sei benannt: Geprüft wird eine Policy, die \emph{mit} exakter Geschwindigkeit trainiert wurde und sie nachträglich entzogen bekommt. Ein von Anfang an ohne Geschwindigkeitsinformation trainierter Agent könnte eine andere Strategie entwickeln. Belegt ist \enquote{diese Policy hängt an der Geschwindigkeit}, nicht \enquote{keine Policy kommt ohne aus}.
+
+\paragraph{Der Fehlerfall im Einzelnen.}
+Auch dort, wo ein Kamera-Agent bereits Runden fährt, bleibt die Geschwindigkeitsauflösung die begrenzende Größe. Lauf \texttt{2230} (\num{250} $\times$ \num{150}) verunglückt reproduzierbar an derselben Stelle -- in vier von vier beobachteten Episoden außen in der linken Haarnadel (Abbildung~\ref{fig:fahrlinien}). Der Vergleich mit dem Experten an genau dieser Stelle zeigt einen bemerkenswert kleinen Unterschied: \SI{1.11}{\meter\per\second} gegenüber \SI{1.04}{\meter\per\second}, also \SI{7}{\percent}. Der Agent beschleunigt in die Kurve hinein, erreicht sein Höchsttempo unmittelbar davor und bremst dann zu spät voll; der Experte bremst rund \num{40} Frames vorher und sanft, der Agent \num{12} Frames vorher und mit voller Kraft.
+
+Die Ursache ist weder mangelnde Sicht -- er hat die Vogelperspektive der ganzen Strecke -- noch ein zu kurzer Planungshorizont, denn \num{40} Frames liegen bequem innerhalb der \num{100} Frames, die $\gamma = 0{,}99$ abdeckt. Sie liegt in der Auflösung der Geschwindigkeit: Der Unterschied zwischen \SI{1.04}{\meter\per\second} und \SI{1.11}{\meter\per\second} beträgt in seinem Bild \num{0.17}\,Pixel. Der Agent sieht, \emph{dass} er fährt, aber nicht hinreichend genau, \emph{wie schnell}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{png/fahrlinien.png}
+  \caption{Fahrlinienvergleich. Grün die Linie des Lidar-Experten, orange mehrere Episoden des Kamera-Agenten \texttt{2230} bei \num{250} $\times$ \num{150}. Der Kamera-Agent pendelt über die Streckenbreite und verunglückt reproduzierbar außen in der linken Haarnadel bei \SI{1.11}{\meter\per\second}; der Experte durchfährt dieselbe Stelle mit \SI{1.04}{\meter\per\second}. Erzeugt mit \texttt{src/eval/fahrlinien.py}.}
+  \label{fig:fahrlinien}
+\end{figure}
+
+\subsubsection{Technische Lösungsansätze gegen die Wahrnehmungsschwelle}
+\label{subsubsec:loesungen}
+
+Aus der Herleitung folgen unmittelbar zwei Hebel, die sich in ihren Kosten deutlich unterscheiden.
+
+\paragraph{Temporales Spreizen des Framestapels.}
+Statt der Bilder $t,\,t-1,\,t-2$ werden $t,\,t-4,\,t-8$ abgetastet. Die Verschiebung zwischen den gestapelten Bildern vervierfacht sich damit, und die Wahrnehmungsschwelle sinkt rechnerisch von \SI{0.64}{\meter\per\second} auf \SI{0.16}{\meter\per\second} -- ohne zusätzlichen Rechen- oder Speicheraufwand, da der Replay-Buffer die Stapel ohnehin über Indexversätze zusammensetzt.
+
+\paragraph{Auflösungserhöhung.}
+Eine Anhebung der Bildauflösung auf \num{250} $\times$ \num{150}\,Pixel senkt die Schwelle auf \SI{0.42}{\meter\per\second} und vergrößert das Fahrzeug in der Beobachtung von \num{4.6} $\times$ \num{1.8} auf rund \num{7} $\times$ \num{3}\,Pixel. Der Preis ist erheblich: Der Durchsatz fällt von rund \num{135000} auf \num{75000} Schritten je Stunde, und der Replay-Buffer wächst von \SI{15.5}{\giga\byte} auf \SI{34.9}{\giga\byte}.
+
+\paragraph{Ergebnis.}
+Die Vorhersage lautete, dass das Spreizen der stärkere \emph{und} der billigere Hebel sei. Die Auflösungserhöhung wirkte wie erwartet: Lauf \texttt{2230} ist der erste Kamera-Agent unter \texttt{measured\_v2}, der überhaupt Runden fährt, und erreicht das bei einem Drittel der Schritte des Vorgängers. Der Ertrag je Frame verdoppelte sich nahezu, von \num{1.18} auf \num{2.01}.
+
+Das temporale Spreizen dagegen lieferte ein \textbf{negatives Ergebnis} und wurde zurückgenommen. Lauf \texttt{2307} mit Abstand \num{4} lag bei jeder Schrittzahl hinter dem Vorgänger, und der Abstand wuchs im Verlauf (Tabelle~\ref{tab:spreizung}). Von \num{150} Auswertungen war keine einzige positiv.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Gespreizter Framestapel gegen aufeinanderfolgende Bilder, beide bei \num{250} $\times$ \num{150} und \num{1.5}\,Mio.\ Schritten.}
+  \label{tab:spreizung}
+  \begin{tabular}{@{}l r r r@{}}
+    \toprule
+    \textbf{Schritte} & \textbf{Abstand 4 (\texttt{2307})} & \textbf{Abstand 1 (\texttt{2230})} & \textbf{Differenz} \\
+    \midrule
+    \num{300000}   & \num{-361.9} & \num{-278.4} & \num{-83.5}  \\
+    \num{700000}   & \num{-335.1} & \num{-153.6} & \num{-181.5} \\
+    \num{1200000}  & \num{-281.4} & \num{+67.9}  & \num{-349.3} \\
+    \midrule
+    bester Einzelwert & \num{-134.3} & \num{1181.2} & \\
+    positive Auswertungen & \num{0} von \num{150} & \num{23} von \num{150} & \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Zwei Erklärungen bieten sich an, beide ungeprüft. Erstens die \emph{Zuordnung}: Bei Abstand \num{1} überlappen sich die drei Fahrzeugabbildungen (\num{4.6}\,px groß, \num{2.5}\,px Versatz) zu einem Schmierstreifen, dessen Form das Tempo codiert; bei Abstand \num{4} liegen sie rund \num{10}\,px auseinander und bilden drei getrennte Flecken, die das Netz einander erst zuordnen muss. Zweitens die \emph{Positionsunschärfe}: Das älteste Bild ist \SI{0.27}{\second} alt und beschreibt eine Lage, die für die aktuelle Entscheidung bereits überholt ist.
+
+Einschränkend ist festzuhalten, dass dieser Vergleich zwei Variablen enthält: Neben dem Abstand wurde auch das Backbone neu erzeugt, weil der Datensatz zum Abstand passen musste; dabei wurde zusätzlich der Experte neu trainiert und der Aufzeichnungspfad umgestellt. Dass es am Abstand lag, ist plausibel, aber nicht bewiesen. Der Code bleibt erhalten (\texttt{src/utils/framestapel\_gespreizt.py}, geprüft für die Abstände 1, 2, 4 und 8); die Voreinstellung ist Abstand \num{1}.
+
+\subsubsection{Reward Engineering: Evolution zu \texttt{v3\_rundenzeit}}
+\label{subsubsec:reward_engineering}
+
+Die Belohnungsfunktion erwies sich als die empfindlichste Komponente des gesamten Aufbaus. Vier Fehlerklassen traten auf, von denen zwei über Wochen unbemerkt blieben.
+
+\paragraph{Die Sperrklinke (Ratchet-Bug).}
+Jede Runde wurde gegen die bisherige Bestzeit der laufenden Episode gerechnet -- und zwar jedes Mal aufs Neue. Eine einzelne schnelle Runde hob damit die Messlatte und kostete über den Rest der Episode mehr, als sie einbrachte:
+\begin{center}
+\begin{tabular}{@{}l r@{}}
+  sieben gleichmäßig langsame Runden        & \num{0} \\
+  sieben Runden, davon eine schnelle        & \num{-250} \\
+  sieben stetig schneller werdende Runden   & \num{+300} \\
+\end{tabular}
+\end{center}
+Schnellfahren war unterm Strich also \emph{bestraft}. Der mathematische Grund: Die Boni teleskopieren -- ihre Summe beträgt stets \enquote{erste minus beste Runde} --, die Strafen dagegen nicht, sie fallen bei jeder Runde erneut an. Die relative Bestrafung wurde in \texttt{v3} ersatzlos entfernt.
+
+\paragraph{Der Oszillations-Bug ($w_{\text{integral}}$).}
+Eine Strafe gegen hochfrequentes Lenkzappeln bestrafte tatsächlich \emph{jedes} Lenken. Die Schwelle war auf \num{2.0} gesetzt, während der Mittelwert der Lenksumme beim gut fahrenden Lidar-Experten bei \num{5.9} liegt. Dieser zahlte dadurch \num{-625} Punkte über \num{2000} Frames -- mehr als seine gesamten Rundenboni von $+600$. Der Parameter wurde auf \num{0.0} gesetzt; bei einer Wiederaktivierung wäre die Schwelle bei 6 bis 8 anzusetzen.
+
+\paragraph{Die tote Zone.}
+Eine harte Strafe unterhalb von \SI{0.1}{\meter\per\second} in Verbindung mit einer quadratisch wachsenden Belohnung darüber ließ den Bereich dazwischen praktisch leer: Bei \SI{0.15}{\meter\per\second} betrug die Strafe null und die Belohnung \num{0.045} je Frame. Genau dort landet das Fahrzeug beim Bremsen in Kurven. Ein lineares Gefälle anstelle der Klippe schließt die Lücke; dies ist der in Tabelle~\ref{tab:reward_gewichte} sichtbare Posten aus $v_{\text{slow}}$ und $w_{\text{slow}}$.
+
+\paragraph{Absolute Strafen gegen skalierende Belohnungen.}
+Der Tempo-Reward wächst mit $v^2$, die Lenkstrafen sind konstant. Der Gleichstand liegt bei $2v^2 = 0{,}58$, also $v = \SI{0.54}{\meter\per\second}$. Unterhalb davon kostet Lenken mehr, als Fahren einbringt -- ein langsamer Agent hat damit den Anreiz, \emph{weniger} zu lenken, und fährt geradeaus in die Wand.
+
+\paragraph{Die feste Crash-Strafe macht die Kennzahl bimodal.}
+Der wichtigste und am längsten übersehene Befund zeigt sich erst beim Zerlegen einer einzelnen Episode (Tabelle~\ref{tab:reward_zerlegung}). Das \emph{Fahren} ist längst positiv; was die Bilanz kippt, ist ein einziger Crash -- eine feste Strafe, die nicht mit der Episodenlänge skaliert.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Zerlegung einer Episode des Kamera-Agenten nach Belohnungsposten (Stand \num{850000} Schritte, \num{250} $\times$ \num{150}, \num{193} Frames).}
+  \label{tab:reward_zerlegung}
+  \begin{tabular}{@{}l r r@{}}
+    \toprule
+    \textbf{Posten} & \textbf{Summe} & \textbf{je Frame} \\
+    \midrule
+    Tempo $2 w_v v^2$        & \num{+313.2} & \num{+1.623} \\
+    Langsam-Strafe           & \num{-145.7} & \num{-0.755} \\
+    Lenk-Glättung            & \num{-26.7}  & \num{-0.138} \\
+    Rundenboni               & \num{+45.3}  & \num{+0.235} \\
+    \midrule
+    \textbf{Fahren zusammen} & \textbf{\num{+186.1}} & \textbf{\num{+0.964}} \\
+    Crash                    & \num{-300.0} & \num{-1.554} \\
+    \midrule
+    \textbf{gemessen}        & \textbf{\num{-113.9}} & \textbf{\num{-0.590}} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Daraus folgt eine Schwelle. Der Ertrag wächst linear mit der Episodenlänge $n$, die Strafe ist konstant:
+\begin{equation}
+  R(n) \approx e \cdot n - 300, \qquad n_0 = \frac{300}{e},
+  \label{eq:schwelle_episodenlaenge}
+\end{equation}
+mit dem Ertrag $e$ je Frame. Eine Regression über die Auswertungen ergibt für \num{250} $\times$ \num{150} einen Ertrag von \num{2.009} je Frame und damit eine Schwelle von \num{282} Frames, für \num{166} $\times$ \num{100} dagegen \num{1.182} und \num{465} Frames. Lauf \texttt{2210} lag mit typischen \num{200} bis \num{250} Frames weit unter seiner Schwelle und konnte sie praktisch nie erreichen -- nur \num{16} von \num{500} Auswertungen waren positiv.
+
+Die methodische Konsequenz ist gravierend: Die Kennzahl steigt nicht allmählich, sondern \emph{kippt} an dieser Schwelle. Ein Lauf knapp darunter produziert lauter negative Werte und gelegentlich, wenn eine Episode zufällig lang genug wird, einen weit positiven Ausreißer. Genau das ist der berühmte Spitzenwert von \num{875.7} bei Lauf \texttt{2210}: kein erworbenes Können, sondern ein Ziehungsergebnis. Zu berichten sind daher stets Spitzenwert, Endstand \emph{und} die zugehörige Episodenlänge.
+
+\subsubsection{Der Diskontfaktor als teuerster Einzelfehler}
+\label{subsec:gamma}
+
+Das Fahrzeug benötigt aus \SI{1.3}{\meter\per\second} rund \SI{1.9}{\second} und \num{97} Frames bis zum Stillstand. Der Planungshorizont bei $\gamma = 0{,}99$ beträgt nach Gleichung~\eqref{eq:horizont} genau \num{100} Frames. Der Agent operierte damit exakt an der Grenze dessen, was er überhaupt vorausschauen konnte.
+
+Die naheliegende Korrektur -- $\gamma$ auf \num{0.999} anzuheben -- zerlegte das Training vollständig. Lauf \texttt{2331} brach nach \num{250000} Schritten zusammen und lag danach \num{1.25}\,Mio.\ Schritte flach bei einer Belohnung von $-355$; der Agent fuhr \num{33} Frames weit. Die Ursache liegt in der Wertskala: Bei rund $+2{,}9$ Belohnung je Frame wächst die zu lernende Wertfunktion von etwa \num{290} auf etwa \num{2900}, während die Lernrate unverändert bei \num{5e-5} blieb. Der Critic muss also zehnfach größere Zahlen vorhersagen, ohne dass ihm dafür größere Schritte zugestanden werden.
+
+Der Befund ist doppelt lehrreich. Erstens: Wer $\gamma$ deutlich anhebt, muss Lernrate, Belohnungsskalierung oder beides mitdenken. Zweitens ist dies ein sauber dokumentierter Fehlschlag mit klar benennbarer Ursache -- als nächster Versuch wäre $\gamma = 0{,}995$ mit einem Horizont von \SI{6.7}{\second} anzusetzen.
+
+\subsubsection{Systematischer Algorithmenvergleich: PPO gegen SAC}
+\label{subsec:ppo_sac_vergleich}
+
+Der strukturelle Unterschied zwischen beiden Verfahren wirkt sich unmittelbar auf die Zahl der Gradientenschritte je gesammelter Erfahrung aus. Bei der hier verwendeten Konfiguration gilt:
+
+\begin{center}
+\begin{tabular}{@{}l l@{}}
+  \toprule
+  \textbf{SAC (off-policy)} & \textbf{PPO (on-policy)} \\
+  \midrule
+  \texttt{buffer\_size} \num{500000} & \texttt{n\_steps} \num{512} je Umgebung \\
+  \texttt{train\_freq} \num{2}, \texttt{gradient\_steps} \num{1} & \texttt{n\_envs} \num{12} $\Rightarrow$ \num{6144} Frames je Runde \\
+  \texttt{batch\_size} \num{512} aus dem Puffer & \texttt{n\_epochs} \num{10}, \texttt{batch\_size} \num{256} \\
+  \midrule
+  rund \num{3072} Gradientenschritte & \num{240} Gradientenschritte \\
+  je \num{6144} Frames & je \num{6144} Frames, danach verworfen \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Der Faktor beträgt somit rund \num{13}, und \ac{SAC} verwendet jede Erfahrung darüber hinaus mehrfach. Auf Bilddaten schlägt das voll durch: \ac{PPO} erwies sich als extrem sample-ineffizient. Der einzige \ac{PPO}-Lauf, der überhaupt messbar etwas gelernt hat, benötigte \num{90}\,Mio.\ Schritte -- das 36-Fache des besten \ac{SAC}-Laufs -- und kam damit auf $-3{,}9$ Punkte gegen dessen \num{3828.2} (Tabelle~\ref{tab:ppo_laeufe}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{PPO-Läufe vom 26.07.2026, alle unter dem alten Fahrzeugmodell \texttt{force\_drag\_v1}. \texttt{BSP} bezeichnet die Backbone-Transplantation.}
+  \label{tab:ppo_laeufe}
+  \small
+  \begin{tabular}{@{}l l l r r r@{}}
+    \toprule
+    \textbf{Lauf} & \textbf{Lernrate} & \textbf{BSP} & \textbf{Schritte} & \textbf{bester Wert} & \textbf{Frames} \\
+    \midrule
+    \texttt{1601} & \num{3e-4} & ja   & \num{2.4}\,Mio.  & \num{-338.8} & \num{9}  \\
+    \texttt{2233} & \num{3e-4} & nein & \num{2.5}\,Mio.  & \num{-235.7} & ---      \\
+    \texttt{2328} & \num{1e-4} & nein & \num{90}\,Mio.   & \num{-3.9}   & \num{76} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Umgekehrt ist \ac{SAC} nicht ohne Schwächen. Auf Bilddaten neigt es zu Instabilitäten durch Critic-Divergenz. Im Lauf \texttt{1432} springt der Critic-Verlust unmittelbar nach dem Leistungshöhepunkt von \num{22.2} auf \num{26670} -- um den Faktor \num{1200} --, und die Leistung fällt von \num{3828.2} auf \num{-1420.8}. Bemerkenswert ist die Reihenfolge: erst das Minimum des Verlusts, dann die Explosion. Das passt zu einer Überanpassung des Critics an den Pufferinhalt, die zusammenbricht, sobald die Policy diesen Bereich verlässt. Der Lidar-Kontrollversuch zeigt dieses Verhalten \emph{nicht} -- dort blieb der Critic-Verlust bei höchstens \num{314} und endete bei \num{9.6}, und ein Einbruch zwischen \num{410000} und \num{450000} Schritten erholte sich von selbst. Der Verdacht verschiebt sich damit von \enquote{\ac{SAC} ist instabil} zu \enquote{\ac{SAC} wird instabil, wenn der Critic aus mehrdeutigen Bildern lernen muss}.
+
+Zwei methodische Einschränkungen des Vergleichs sind zu nennen. Erstens liefen alle \ac{PPO}-Läufe unter dem alten Fahrzeugmodell und ohne Versionskennung der Belohnungsfunktion; ein Zahlenvergleich mit den \ac{SAC}-Läufen unter \texttt{measured\_v2} ist deshalb unzulässig. Zweitens enthält der bisherige Aufbau einen klaren methodischen Fehler: Stable-Baselines3 zählt \texttt{eval\_freq} \emph{je Umgebung}. Aus \num{50000} bei zwölf Umgebungen wird damit eine Messung alle \num{600000} Schritte -- sechzigmal seltener als bei \ac{SAC} mit einer Umgebung. Da das beste Modell nur bei einer Auswertung gesichert wird, ist der berichtete \ac{PPO}-Bestwert systematisch eine untere Schranke. Eine saubere Wiederholung ist auf dem Branch \texttt{ppo-vergleich} vorbereitet; die noch offene Vergleichszelle ist die Kombination aus niedriger Lernrate und Backbone.
+
+Für die Vergleichbarkeit bei gleichem \emph{Zeitbudget} -- dem für die Praxis sinnvolleren Maßstab, weil ein Schritt bei beiden Verfahren unterschiedlich teuer ist -- gilt: Lauf \texttt{2139} (\ac{SAC}, \num{1.5}\,Mio.\ Schritte) lief \SI{11.17}{\hour} und erreichte \num{2427.5}, Lauf \texttt{2328} (\ac{PPO}, \num{90}\,Mio.\ Schritte) lief \SI{12.15}{\hour} und erreichte \num{-3.9}. \ac{PPO} hatte also sogar knapp eine Stunde mehr Rechenzeit. Erschwerend kommt hinzu, dass \ac{SAC} rund \SI{11}{\percent} seiner Schritte für Zwischenauswertungen verbrauchte, \ac{PPO} praktisch keine.
+
+\subsubsection{Software- und Buffer-Optimierungen}
+\label{subsec:buffer}
+
+\paragraph{Speicheroptimierter Replay-Buffer.}
+Stable-Baselines3 legt die \emph{fertig gestapelte} Beobachtung im Replay-Buffer ab, weil der Framestapel als Wrapper um die Umgebung realisiert ist. Benachbarte Übergänge teilen sich jedoch zwei ihrer drei Bilder -- jedes Einzelbild liegt also etwa dreifach im Speicher. Bei \num{166} $\times$ \num{100} und \num{500000} Übergängen ergibt das \SI{23.2}{\giga\byte}.
+
+Der eigens entwickelte Puffer \texttt{src/utils/framestapel\_buffer.py} speichert stattdessen nur das jeweils neueste Einzelbild und setzt die Stapel erst beim Ziehen eines Minibatches aus Nachbarindizes zusammen. Der Speicherbedarf sinkt damit auf \SI{15.5}{\giga\byte}.
+
+Zwei Feinheiten sind dabei entscheidend und wurden testgetrieben abgesichert. Erstens die \textbf{Episodengrenzen}: Überschreitet ein Index eine Episodengrenze, wird das älteste Bild der neuen Episode dupliziert, damit kein Bild aus einer Vorepisode in den Stapel gerät. Zweitens die \textbf{Naht des Ringpuffers}: Genau $n_{\text{stack}}-1$ Indizes ab der Schreibposition greifen beim Zusammensetzen auf Einträge zu, die bereits überschrieben wurden. Bemerkenswert ist weniger der Schaden -- zwei von \num{500000} Indizes, also \SI{0.0004}{\percent} -- als die \emph{Testlücke}: Beide ursprünglichen Tests liefen mit halbleerem Puffer, der Ring lief nie um, der fehlerhafte Pfad wurde nie ausgeführt, und beide Tests meldeten bitgleiche Ergebnisse. Der erweiterte Test erzwingt nun einen 1,75-fachen Umlauf.
+
+Bei der Bewertung der Ersparnis ist Sorgfalt geboten. Gegen einen Standardpuffer \emph{ohne} Speicheroptimierung beträgt der Faktor \num{3.0}; gegen den tatsächlichen Vorzustand, der bereits mit \texttt{optimize\_memory\_usage=True} lief, jedoch nur \num{1.5}. Wer eine Ersparnis angibt, muss dazusagen, wogegen. Die Umstellung kostet zudem \SI{11.8}{\percent} Rechenzeit je Update (\SI{49.1}{\milli\second} auf \SI{54.9}{\milli\second}), weil der Stapel beim Ziehen erst entstehen muss. Die gezogenen Minibatches sind bitgleich mit denen des Standardpuffers.
+
+Ein naheliegender weiterer Schritt -- \emph{Bit-Packing}, also vier Pixel à zwei Bit in ein Byte zu packen -- wurde gemessen und verworfen: Es spart zwar den Faktor \num{4} (\SI{5.8}{\giga\byte} statt \SI{23.2}{\giga\byte}), kostet aber \SI{28.8}{\milli\second} Entpackzeit bei \emph{jedem} Gradientenschritt, also \SI{59}{\percent} Aufschlag. Aus zwölf Stunden Training würden neunzehn.
+
+\paragraph{Korrekte Behandlung des Zeitlimits.}
+Eine Episode kann aus zwei grundverschiedenen Gründen enden. Bei einem Crash ist der Folgezustand absorbierend, sein Wert ist tatsächlich null. Beim Erreichen des Zeitlimits von \num{2000} Frames ist er das \emph{nicht} -- das Fahrzeug wäre weitergefahren, wir haben lediglich aufgehört hinzusehen. Für das Lernziel des Critics macht das den Unterschied zwischen
+\begin{equation}
+  y_t = r_t \qquad \text{und} \qquad y_t = r_t + \gamma\, Q(s_{t+1}, a_{t+1}).
+  \label{eq:bootstrapping}
+\end{equation}
+
+In diesem Projekt stand \texttt{handle\_timeout\_termination} auf \texttt{False} -- nicht absichtlich, sondern weil \texttt{optimize\_memory\_usage=True} es in Stable-Baselines3 erzwingt. Beide Optionen sind dort unvereinbar, und es gibt keine Warnung: Der Lernfehler kam als stillschweigende Nebenwirkung einer Speicherentscheidung herein.
+
+Der Schaden bleibt dabei nicht lokal, und der Grund ist die Beobachtung selbst: \emph{Der Agent sieht keine Uhr.} Seine Beobachtung ist ein Kamerabild ohne Framezähler und ohne Restzeitangabe. Für einen Agenten, der saubere Runden fährt, sieht Frame \num{1990} identisch aus wie Frame \num{300} -- dieselbe Stelle der Strecke, dieselbe Lage. Der Critic erhält für denselben Eingang widersprüchliche Ziele und mittelt sie. Der falsche Nullwert klebt damit nicht am Episodenende, sondern verschmiert über alle Zustände, die \emph{gut} aussehen. Verschärfend ist die Richtung der Korrelation: Ein schlechter Agent crasht früh und erreicht das Limit nie, ein guter fährt durch und erreicht es immer. Der Schaden schaltet sich genau in dem Moment ein, in dem der Agent aufhört zu crashen.
+
+Lauf \texttt{1432} hatte auf seinem Höhepunkt eine mittlere Auswertungs-Episodenlänge von exakt \num{2000}. Als alleinige Erklärung für die Einbrüche taugt der Mechanismus dennoch nicht: Im \emph{Training} lag die Episodenlänge zum selben Zeitpunkt bei \num{398} Frames, weil die Exploration den Agenten von der Ideallinie schob. Es landeten also kaum Timeout-Übergänge im Puffer. Die Korrektur bleibt richtig, ist aber nicht die Ursache.
+
+\paragraph{Headless-Rendering via OpenCV.}
+Ursprünglich erzeugte die Umgebung ihre Bilder über Pygame. Bei zwölf parallelen Trainingsumgebungen öffnete jeder Unterprozess ein eigenes Fenster, und Windows gingen die Fenster-Handles aus. Die Umstellung auf reines OpenCV- und NumPy-Rendering behob das.
+
+Beiläufig deckte diese Umstellung ein weit gravierenderes Problem auf. Beide Renderpfade unterscheiden sich in lediglich \SI{0.05}{\percent} der Pixel -- reine Kantenglättung des Fahrzeug-Sprites, denn OpenCV glättet, Pygame nicht. Das genügt, um die Aktionen des Netzes vollständig zu ändern:
+\begin{center}
+\begin{tabular}{@{}l r r r@{}}
+  \toprule
+                  & \textbf{Gas} & \textbf{Bremse} & \textbf{Lenkung} \\
+  \midrule
+  OpenCV-Bild     & \num{0.488}  & \num{0.974}     & \num{+0.302} \\
+  Pygame-Bild     & \num{0.875}  & \num{0.908}     & \num{-0.801} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+Derselbe Agent fuhr im Trainings-Renderpfad \num{256} Frames und \SI{6.9}{\meter}, im anderen \SI{0.00}{\meter}. Erklärbar ist das über die Größenordnung: Die acht abweichenden Pixel entsprechen ungefähr dem \emph{gesamten Fahrzeug} in der Beobachtung -- aus Sicht des Netzes war das Auto schlicht weg.
+
+\subsection{Erkenntnisse (Gut und Schlecht)}
+\label{subsec:erkenntnisse_phase1}
+
+\paragraph{Oszillierendes Stellverhalten.}
+Erste Agenten zeigten teils starkes Oszillieren: Lenkung und Gas sprangen praktisch binär zwischen $-1$ und $+1$. Für den Realtransfer ist ein solches Verhalten unbrauchbar, da reale Servos träger sind und vorausschauend gelenkt werden muss. Die Gegenmaßnahmen waren die Begrenzung der Lenkänderungsrate auf \num{0.5} je Frame und die Lenk-Glättungsstrafe $w_{\text{smooth}}$ in der Belohnungsfunktion.
+
+\paragraph{Vernachlässigte Reifenhaftung.}
+Der Grip wurde anfangs nicht modelliert und musste nachgebessert werden. Ohne das Haftungslimit $\omega_{\max} = \mu g / |v|$ folgte das Fahrzeug der Lenkvorgabe exakt, statt bei zu hoher Kurvengeschwindigkeit unterzusteuern -- ein Verhalten, das auf realer Hardware nicht existiert.
+
+\paragraph{Konvergenzverhalten der Eingabevarianten.}
+Einige Varianten konvergieren nur sehr schwer oder gar nicht. Das betrifft insbesondere die Single-Frame-Eingaben, was aus der \ac{POMDP}-Perspektive erwartbar ist: Ohne Zeit- oder Telemetrieinformation existiert keine eindeutige Abbildung von Beobachtung auf richtige Aktion.
+
+Die fahrzeugfeste Ansicht wurde durch die Physikkorrektur nachträglich unbrauchbar. Das Fahrzeug wäre darin mit \num{12.9} $\times$ \num{5.0}\,px achtmal so groß wie in der globalen Ansicht, und die Subpixelgrenze sänke auf \SI{0.23}{\meter\per\second}. Der Ausschnitt zeigt jedoch nur \SI{0.64}{\meter} Kantenlänge, also \SI{0.32}{\meter} nach vorn -- etwa \SI{8}{\percent} einer Runde. Gegen den gemessenen Bremsweg gehalten ist das bei \emph{jedem} Tempo zu kurz: aus \SI{0.5}{\meter\per\second} bräuchte es \SI{0.38}{\meter}, aus \SI{1.2}{\meter\per\second} bereits \SI{1.52}{\meter}. Der Agent sähe die Wand grundsätzlich erst, wenn Bremsen nicht mehr ausreicht. Mit dem alten Fahrzeug (Bremsweg \SI{6}{\centi\meter} bei \SI{1.5}{\meter\per\second}) war die Ansicht brauchbar -- deshalb funktionierte sie im Juni. Das Grundproblem ist strukturell: Mehr Pixel für das Fahrzeug bedeuten bei mitgeführtem Ausschnitt zwangsläufig weniger Sichtweite; beides zugleich geht nur über die Auflösung.
+
+\paragraph{Das Henne-Ei-Problem hochdimensionaler Eingaben.}
+Bei sehr vielen Parametern und zufälliger Gewichtsinitialisierung scheitert das Lernen häufig an einer Rückkopplung: Da der Agent zu Beginn nicht fahren kann, sieht er fast ausschließlich Crashs und kann deshalb nicht lernen, welche visuellen Merkmale für das Fahren entscheidend sind -- was wiederum verhindert, dass er fahren lernt. Die Vision-Policy bei \num{166} $\times$ \num{100} umfasst \num{16261098} Parameter, bei \num{250} $\times$ \num{150} rund \num{41}\,Mio.; der Lidar-Agent kommt mit rund \num{10000} aus.
+
+\paragraph{Ein vortrainiertes Netz hilft -- aber anders als erwartet.}
+\label{subsec:vortraining}
+Der praktische Befund ist positiv: Trotz des Risikos katastrophalen Vergessens konvergiert der Agent mit Vortraining aus Demonstrationen des stochastisch gestörten Lidar-Experten deutlich zuverlässiger als ohne.
+
+Der genauere Blick relativiert jedoch, \emph{was} dabei übertragen wird. Vom vortrainierten \ac{CNN} werden nur die drei Faltungsschichten kopiert; die beiden Linear-Schichten -- also genau der Teil, der aus Bildmerkmalen Gas, Bremse und Lenkung macht -- werden verworfen. Übertragen wird damit Sehfähigkeit, nicht Fahrwissen. Von den elf Runden des Lidar-Experten kommt beim Vision-Agenten nichts an.
+
+Bemerkenswerterweise kann das vortrainierte Netz auch als Ganzes nicht fahren. Lässt man es selbst steuern (\texttt{src/eval/bc\_fahren.py}), ergibt sich für alle drei je erzeugten Backbones dasselbe Bild: \num{24}, \num{68} beziehungsweise \num{230} Frames, jeweils null Runden, jeweils Crash. Das ist überraschend, weil das Netz die Expertenaktionen sehr genau vorhersagt (MSE \num{0.0034}) und die zeitliche Information nachweislich nutzt -- friert man den Stapel auf drei identische Bilder ein, steigt der Fehler um den Faktor \num{125} auf \num{0.426}. Die Erklärung ist der Covariate Shift aus Abschnitt~\ref{subsec:il}, quantifiziert über die Abweichung zwischen Schüler und Experte im selben Zustand: \num{0.046} auf dem Datensatz, \num{0.264} beim Selbstfahren, \num{0.644} allein auf der Lenkung. Zwei alternative Erklärungen -- unterschiedliche Stapel-Konvention beim Reset und unterschiedlicher Renderpfad -- wurden geprüft und ausgeschlossen.
+
+Und dennoch: Lauf \texttt{1432} erreichte \num{3828.2} Punkte mit genau dem Backbone, das eigenständig \num{24} Frames weit fährt. \ac{RL} kann also auf einer unbrauchbaren Fahrpolitik aufsetzen und trotzdem fahren lernen -- die Faltungsschichten liefern brauchbare Augen, unabhängig davon, wie schlecht der Kopf ist. Offen bleibt allerdings, ob das Vortraining seinen Aufwand überhaupt wert ist: Eine Sondierung der übertragenen Merkmale (\texttt{src/eval/backbone\_probe.py}) misst sie nicht besser als zufällige Anfangsgewichte ($R^2$ \num{0.735} gegen \num{0.748}), und ein \ac{SAC}-Lauf \emph{ohne} Backbone wurde nie gefahren. Für \ac{PPO} existiert der Vergleich, für \ac{SAC} nicht. Solange das aussteht, ist der Backbone-Schritt eine Gewohnheit, keine belegte Verbesserung.
+
+\paragraph{Implizites Lernen von Geschwindigkeit funktioniert schlechter als erwartet.}
+Die einschlägige Literatur und die vorbereitende Recherche legten nahe, dass ein \ac{CNN} Geschwindigkeit und Beschleunigung aus einem Bildstapel zuverlässig implizit erlernt. Unter realistischer Fahrzeugdynamik und der hier verwendeten Auflösung trifft das nicht zu -- die Voraussetzung dafür, eine messbare Pixelverschiebung, ist im relevanten Geschwindigkeitsbereich schlicht nicht gegeben.
+
+\paragraph{Zielsetzung bleibt der globale Ansatz.}
+Ziel des Projekts ist ein Agent, der menschliche Rundenzeiten schlägt und dabei eine mit einem menschlichen Fahrer vergleichbare Übersicht besitzt, also die gesamte Bahn sieht. Aus dieser Zielsetzung heraus wurde der global funktionierende Ansatz weiter verfeinert, obwohl der Ego-Crop lokal höhere Auflösung böte.
+
+\subsection{Fallen und Fehler}
+\label{subsec:fallen_phase1}
+
+\paragraph{Die Belohnungsfunktion ist hochgradig sensibel.}
+Änderungen führen häufig zu Rückschritten, weil neue Strafen oder Boni unvorhergesehene, gegenläufige Effekte auslösen. Die vier in Abschnitt~\ref{subsubsec:reward_engineering} beschriebenen Fehlerklassen entstanden sämtlich aus lokal plausiblen Einzelentscheidungen. Besonders tückisch sind Wechselwirkungen zwischen Posten unterschiedlicher Skalierung -- eine konstante Strafe gegen einen quadratisch wachsenden Bonus verhält sich in verschiedenen Geschwindigkeitsbereichen qualitativ verschieden.
+
+\paragraph{Angst vor der Ziellinie.}
+Visuelle Agenten mieden die Ziellinie. Die Erklärung liegt in der Lernreihenfolge: Bis ein Agent die Ziellinie überhaupt zum ersten Mal erreicht, hat er über viele Episoden gelernt, dass dunkler Asphalt sicher ist und farbliche Abweichungen Begrenzungen darstellen. Die karierte Markierung der Start-/Ziellinie wird von diesem gelernten Merkmalsdetektor als Hindernis eingeordnet. Der Lidar-Agent zeigt dieses Verhalten nicht, weil seine Beobachtung keine Farbinformation enthält.
+
+\paragraph{Eine feste Startposition erzeugt auswendig gelernte Trajektorien.}
+Dies ist der wichtigste Einzelbefund des Projekts und wurde erst spät entdeckt. Alle Kamera-Läufe bis zum 20.08.2026 starteten am identischen Punkt, \num{14}\,Pixel vor der Ziellinie. Zusammen mit deterministischer Physik und deterministischer Auswertung lief damit jede Episode exakt gleich ab -- erkennbar an einer Standardabweichung von exakt $\pm 0{,}00$ in sämtlichen Logs. Fünf Auswertungsepisoden lieferten fünfmal dasselbe Ergebnis; es wurde fünffacher Aufwand für eine einzige Messung bezahlt, ohne unterscheiden zu können, ob ein Wert typisch oder ein Glücksfall war.
+
+Der Kreuzvergleich beider Agenten unter beiden Bedingungen, je zwölf Episoden, macht die Tragweite sichtbar (Tabelle~\ref{tab:startpunkte}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Kreuzvergleich von festem und streuendem Startpunkt. Lauf \texttt{2254} wurde mit festem, Lauf \texttt{2215} mit streuendem Startpunkt trainiert; beide wurden unter beiden Bedingungen ausgewertet.}
+  \label{tab:startpunkte}
+  \begin{tabular}{@{}l r r r r@{}}
+    \toprule
+    & \multicolumn{2}{c}{\textbf{fester Start}} & \multicolumn{2}{c}{\textbf{streuender Start}} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    \textbf{Agent} & Reward & Runden & Reward & Runden \\
+    \midrule
+    \texttt{2254} (fest trainiert)     & \num{5080.5} & \num{9.0} & \num{-1829.2} & \num{0.6} \\
+    \texttt{2215} (streuend trainiert) & \num{1027.6} & \num{2.0} & \num{1545.7}  & \num{3.1} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Lauf \texttt{2254} sah mit \num{5080.5} Punkten und neun Runden großartig aus -- aber nur von seinem einen Startpunkt aus. Aus zufälligen Lagen fällt er auf \num{0.6} Runden. Er hatte keine Fahrpolitik gelernt, sondern eine Bahn abgespult. Lauf \texttt{2215} ist unter beiden Bedingungen mittelmäßig, aber konsistent -- und der einzige der beiden, der überhaupt \emph{fahren} kann.
+
+Daraus folgt eine unangenehme Konsequenz für die gesamte Messreihe: Alle Kamera-Läufe vor dem 20.08.2026 messen zu einem unbekannten Anteil Auswendiglernen statt Fahren, und zwar umso stärker, je besser die Zahl aussieht. Rückwirkend erklärt der Befund auch den Sprung von \num{1506} auf \num{5080} nach der Reparatur des Rundenzeit-Bonus: Dieser Bonus belohnt exakt das Perfektionieren einer wiederholten Runde.
+
+Die Korrektur streut den Startpunkt seither über \SI{0.9}{\meter} entlang der Geraden vor der Ziellinie und \SI{0.08}{\meter} nach jeder Seite (Abbildung~\ref{fig:startpunkte}). Ein Variieren der Startpositionen von Anfang an -- und ein Start mit Anfangsgeschwindigkeit statt aus dem Stand -- hätte die Konvergenz vermutlich beschleunigt und wäre die billigste aller Verbesserungen gewesen.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{png/startpunkte.png}
+  \caption{Streuung der Startpunkte nach der Korrektur. Alle möglichen Startlagen liegen auf der Geraden \emph{vor} der Ziellinie, damit die Rundenzählung ihren Sinn behält; grün markiert sind zwölf tatsächlich gezogene Startpunkte.}
+  \label{fig:startpunkte}
+\end{figure}
+
+\paragraph{Der Rundenzeit-Bonus hat vier Wochen lang nie gefeuert.}
+Der Startpunkt lag \num{14}\,Pixel vor der Ziellinie, die erste Überquerung erfolgte daher nach neun Frames und wurde als Rundenzeit gewertet. Danach stand die Bestzeit bei etwa zehn Frames, und keine echte Runde -- rund \num{172} Frames -- konnte das je unterbieten. Der Parameter $w_{\text{imp}} = 5{,}0$ war damit vom 28.07. bis zum 17.08.2026 wirkungslos. Repariert: Die erste Überquerung vergibt den Rundenbonus, startet aber lediglich die Zeitmessung, ohne selbst eine Zeit zu setzen.
+
+\paragraph{Der Seed wurde bei jedem Reset neu gesetzt.}
+In dieser Konstellation zieht der Zufallsgenerator bei jedem Zurücksetzen dieselbe Zahl -- streuende Startpunkte wären trotz Streuung in jeder Episode identisch geblieben. Einmal säen genügt; die Folge der Ziehungen bleibt dabei reproduzierbar.
+
+\paragraph{Auswertung auf anderer Hardware als das Training.}
+Dasselbe Modell, dieselbe Umgebung, lediglich CPU statt GPU:
+\begin{center}
+\begin{tabular}{@{}l r r r@{}}
+  \toprule
+          & \textbf{Frames} & \textbf{Runden} & \textbf{Reward} \\
+  \midrule
+  CPU     & \num{216}  & \num{0} & \num{-273.7}  \\
+  CUDA    & \num{2000} & \num{9} & \num{5080.5}  \\
+  \bottomrule
+\end{tabular}
+\end{center}
+Gleitkomma-Unterschiede in der Größenordnung $10^{-7}$ schaukeln sich über eine Episode zu einem völlig anderen Verlauf auf. Dies ist keine Fehlfunktion, sondern eine Eigenschaft der Policy -- und ein deutliches Warnsignal für den späteren Realtransfer.
+
+\paragraph{Protokollierung und Wirklichkeit laufen auseinander.}
+Das durchgehende Muster fehlgeschlagener Nachvollziehbarkeit lautet: Ein Wert steht im Code und wird getrennt davon von Hand ins Protokoll geschrieben. Aufgetreten sind unter anderem folgende Fälle: Die drei Koeffizienten der Längsdynamik waren hartcodiert und tauchten in keiner Konfiguration auf, während \texttt{mass\_kg} protokolliert wurde und Vollständigkeit vortäuschte. \texttt{n\_envs} stand auf \num{1}, das Modellarchiv nannte \num{3}. \texttt{total\_timesteps} stand zweimal mit verschiedenen Werten. \texttt{gamma} war gar nicht gesetzt, und Stable-Baselines3 nahm stillschweigend \num{0.99}. Die Parameter \texttt{best\_lap\_bonus} und \texttt{slow\_lap\_penalty} wurden in jeder Konfiguration protokolliert, aber nie gelesen -- die tatsächlich wirksamen Faktoren waren hartcodiert.
+
+\paragraph{Automatisches Zurücksetzen verdeckt den Fehlerfall.}
+Endet eine Episode, ruft der Vektorisierungs-Wrapper von Stable-Baselines3 sofort \texttt{reset()} auf -- noch bevor die eigene Beobachtungsschleife \texttt{render()} erreicht. Der Crash-Frame wird damit nie gezeichnet; sichtbar ist bereits der Startzustand. Das führte zu einer völlig falschen Diagnose: Das Fahrzeug schien einfach stehen zu bleiben und neu zu starten. Tatsächlich fuhr es mit \SI{1.19}{\meter\per\second} in die Außenwand und bremste die letzten sieben Frames vergeblich.
+
+\paragraph{Die Auswertung selbst kostet Rechenzeit.}
+\ac{SAC} verbrauchte \SI{11}{\percent} seiner Schritte für Zwischenauswertungen (\num{150} Auswertungen $\times$ \num{5} Episoden $=$ \num{167905} Frames), \ac{PPO} dagegen \num{4090} Frames. Bei einem Vergleich nach Zeitbudget ist das zu berücksichtigen.
+
+\section{Phase 2: 3D-Deployment}
+\label{sec:phase2}
+
+\begin{quote}
+\small
+\textbf{Anmerkung zum Bearbeitungsstand.} Dieser Abschnitt wird von dem Projektmitglied ausgefüllt, das die Arbeiten in NVIDIA Isaac Sim durchgeführt hat. Der hier stehende Text ist ausdrücklich ein \emph{Gerüst-Entwurf} und darf vollständig überschrieben werden: Er enthält ausschließlich, was sich aus den Ergebnissen von Phase~1 und den Projektnotizen zur Übertragung (\texttt{isaac\_umsetzung.md}) belastbar ableiten lässt -- das Konzept, die Übertragungsvorschrift und die aus 2D vorhersagbaren Fehlerquellen. Alles, was gemessene 3D-Ergebnisse erfordert, ist als Platzhalter gekennzeichnet und in Anhang~\ref{chap:anhang_b} als offener Beleg geführt.
+\end{quote}
+
+\subsection{Ideen und Konzepte}
+\label{sec:phase2_ideen}
+
+Die Grundidee von Phase~2 ist ein Austausch von genau zwei Komponenten bei sonst unverändertem Aufbau: Die gemessene Längsdynamik nach Gleichung~\eqref{eq:measured_v2} wird durch die Starrkörpersimulation PhysX ersetzt, und das synthetisch gerenderte Streckenbild durch das Bild einer virtuellen Kamera über dem Aufbau. Alles andere -- Algorithmus, Belohnungsstruktur, Aktionsdefinition, Replay-Buffer -- soll zunächst unverändert übernommen werden, damit ein Fehlschlag zuordenbar bleibt.
+
+\paragraph{Was direkt übernommen werden kann.}
+\begin{description}
+  \item[Der Algorithmus samt Hyperparametern.] \ac{SAC} mit den in Anhang~\ref{chap:anhang_b} dokumentierten Werten ist in dieser Aufgabe erprobt. Insbesondere sollte $\gamma = 0{,}99$ nicht ohne gleichzeitige Anpassung der Lernrate angehoben werden (Abschnitt~\ref{subsec:gamma}).
+  \item[Die Belohnungsformel.] Sie ist nachweislich lösbar -- der Lidar-Agent erreicht damit elf Runden. Die Gewichte hängen jedoch an der Fahrzeugdynamik: $v_{\text{slow}} = \SI{0.6}{\meter\per\second}$ ist auf ein Fahrzeug mit $v_{\max} = \SI{1.9}{\meter\per\second}$ abgestimmt, und die Crash-Strafe von $-300$ entspricht rund \num{150} Frames Fahrertrag. Beides ist nachzurechnen, sobald PhysX andere Geschwindigkeiten liefert.
+  \item[Die Aktionsdefinition.] Gas, Bremse und Lenkung getrennt, mit begrenzter Lenkgeschwindigkeit -- das entspricht dem realen Fahrzeug.
+  \item[Der Einzelbild-Replay-Buffer.] Er ist von der Umgebung unabhängig und spart bei Bildbeobachtungen ein Drittel Speicher. Bei mehreren parallelen Umgebungen wird das relevanter, nicht weniger.
+\end{description}
+
+\paragraph{Asymmetrischer Actor-Critic.}
+Über die reine Übertragung hinaus bietet die 3D-Simulation eine Möglichkeit, die in 2D nicht bestand und die dem Blueprint von GT Sophy \cite{wurman2022outracing} folgt: Der Critic erhält während des Trainings Zugriff auf den vollständigen Zustand -- exakte Pose, Gierrate, Radschlupf --, während der Actor ausschließlich Bild und Onboard-Telemetrie sieht. Da der Critic zur Laufzeit nicht benötigt wird, bleibt die Policy deployfähig. Angesichts des in Abschnitt~\ref{subsec:subpixel} belegten Befunds, dass gerade die Wertschätzung unter mehrdeutigen Bildern instabil wird, ist dies der methodisch naheliegendste Hebel.
+
+\paragraph{Domain Randomization.}
+Für den späteren Realtransfer ist die Randomisierung von Reibwerten, Beleuchtungsverhältnissen, Kamerarauschen, Latenzen sowie Fahrzeugmasse und Schwerpunktlage vorgesehen. Der Befund aus Abschnitt~\ref{subsec:buffer}, dass bereits \SI{0.05}{\percent} abweichende Pixel die Policy vollständig umwerfen, macht diesen Punkt von einer Verbesserung zu einer Notwendigkeit.
+
+\subsection{Umsetzung}
+\label{sec:phase2_umsetzung}
+
+\subsubsection{Was neu gebaut werden muss}
+
+\paragraph{Die Beobachtung.}
+Die Vogelperspektive der gesamten Strecke ist in Isaac Sim eine reale Kamera über dem Aufbau, kein heruntergerechnetes 2D-Bild. Zu klären sind Kameraposition und Blickwinkel so, dass die gesamte Strecke im Bild liegt, sowie die Auflösung -- derzeit \num{250} $\times$ \num{150}. In Isaac kostet das Rendern deutlich mehr; diese Größe wird damit zur bestimmenden Größe für den Durchsatz. Die Quantisierung auf vier Graustufen spart dagegen \emph{keinen} Speicher, da \texttt{uint8} unabhängig von der Zahl der vorkommenden Werte ein Byte je Pixel belegt; sie ist damit optional. Der Framestapel muss dieselbe zeitliche Basis haben wie bisher: drei aufeinanderfolgende Bilder bei \SI{30}{\hertz}.
+
+\paragraph{Die Fahrphysik.}
+PhysX ersetzt Gleichung~\eqref{eq:measured_v2}. Damit ändern sich Beschleunigung, Bremsweg, Höchstgeschwindigkeit und Kurvengrenztempo -- und mit ihnen jede Einstellung, die auf Zeit oder Geschwindigkeit beruht. Sinnvoll ist, das gemessene Modell als \emph{Prüfstein} zu behalten: dieselben Vollgas- und Bremsversuche in Isaac zu fahren und mit den Auswertungen aus \texttt{Other tools/Auto Parameter messen/} zu vergleichen. Weicht Isaac stark ab, ist entweder die Parametrierung falsch oder die Messung war es.
+
+\paragraph{Kollision und Rundenzählung.}
+An die Stelle der beiden Shapely-Polygone für die Ränder und der Linie für Start und Ziel treten Kollisionskörper und ein Trigger-Volumen. Die Rundenlogik selbst kann einschließlich der in Abschnitt~\ref{subsec:fallen_phase1} beschriebenen Reparatur übernommen werden.
+
+\paragraph{Zurücksetzen.}
+Die streuenden Startpunkte müssen mitkommen. In Isaac ist das eher einfacher, weil sich Posen direkt setzen lassen.
+
+\subsubsection{Empfohlene Reihenfolge des Aufbaus}
+
+Die folgende Reihenfolge ergibt sich unmittelbar aus den Erfahrungen von Phase~1 und ist so angelegt, dass jeder Schritt eine eigene, überprüfbare Aussage liefert:
+
+\begin{enumerate}
+  \item Fahrzeug in Isaac parametrieren und gegen die Videomessung prüfen.
+  \item Kamera setzen und die Wahrnehmungsschwelle nach Gleichung~\eqref{eq:schwelle} mit den \emph{neuen} Pixelmaßen und Geschwindigkeiten neu ausrechnen.
+  \item Kollision, Ziellinie und Rundenzählung aufbauen.
+  \item Zurücksetzen mit streuenden Startpunkten implementieren.
+  \item Belohnungsfunktion übernehmen und die Gewichte an die neuen Geschwindigkeiten anpassen.
+  \item \textbf{Zuerst die Lidar-Variante trainieren.} Sie ist der Beleg, dass Physik und Belohnungsfunktion lösbar sind, und kostet in 2D lediglich zwölf Minuten.
+  \item Erst danach die Bildvariante.
+\end{enumerate}
+
+Schritt~6 ist der wichtigste einzelne Ratschlag aus diesem Projekt. Er hat in Phase~1 in \SI{45}{\minute} geklärt, was zuvor wochenlang unklar war: dass die Aufgabe lösbar ist und das Problem in der Wahrnehmung sitzt.
+
+\subsubsection{Umgesetzter Stand}
+
+\begin{figure}[htbp]
+  \centering
+  \platzhalterbild{Aufbau der 3D-Szene in Isaac Sim: USD-Assets von Strecke und Fahrzeug, Kameraposition, Kollisionskörper und Trigger-Volumen der Ziellinie.}
+  \caption{3D-Szene in NVIDIA Isaac Sim.}
+  \label{fig:isaac_szene}
+\end{figure}
+
+Die konkrete Beschreibung der aufgebauten Szene -- USD-Assets, PhysX-Reibwerte und Reifenmodell, Kameramodell und Render-Pipeline -- ist an die Stelle von Abbildung~\ref{fig:isaac_szene} einzutragen, sobald die Umsetzung vorliegt. Die dafür zu klärenden Fragen sind in Anhang~\ref{chap:anhang_b} zusammengestellt.
+
+\subsection{Erkenntnis Gut und Schlecht}
+\label{sec:phase2_erkenntnis}
+
+Belastbare Aussagen über die 3D-Umgebung setzen Messungen in dieser Umgebung voraus und können daher noch nicht getroffen werden. Was sich bereits sagen lässt, sind die Erwartungen, an denen sich die Umsetzung messen lassen muss:
+
+\begin{description}
+  \item[Erwartung 1 (positiv).] Die Aufgabe ist mit privilegierter Beobachtung lösbar. Wenn der Lidar-Agent in Isaac nicht innerhalb einer vergleichbaren Größenordnung konvergiert, liegt der Fehler in Physikparametrierung oder Belohnungsskalierung -- nicht in der Methodik.
+  \item[Erwartung 2 (negativ).] Die Wahrnehmungsschwelle tritt erneut auf. Sie ist eine Funktion von Kameraauflösung, Maßstab, Bildrate und Fahrzeuggeschwindigkeit und damit von der Simulationsplattform unabhängig. Ergibt die Neuberechnung nach Gleichung~\eqref{eq:schwelle} wieder Bruchteile eines Pixels, ist das Ergebnis vorhersehbar.
+  \item[Erwartung 3 (negativ).] Die Sprödigkeit der Policy gegenüber minimalen Bildunterschieden wird in 3D eher zunehmen, weil Beleuchtung, Schattenwurf und Renderrauschen zusätzliche Variationsquellen einführen. Ohne Beobachtungs-Augmentierung ist mit Problemen zu rechnen.
+\end{description}
+
+\subsection{Fallen und Fehler}
+\label{sec:phase2_fallen}
+
+Die folgenden Fehlerquellen sind in Phase~1 tatsächlich aufgetreten, haben jeweils Tage gekostet und treten in Phase~2 in gleicher Form wieder auf. Sie sind hier als Prüfliste formuliert.
+
+\begin{enumerate}
+  \item \textbf{Die Wahrnehmungsgrenze neu ausrechnen}, bevor trainiert wird -- mit der neuen Kamera und den neuen Geschwindigkeiten. Der naheliegende Ausweg, die Bilder zeitlich zu spreizen, wurde in 2D getestet und war \emph{schlechter} (Abschnitt~\ref{subsubsec:loesungen}).
+  \item \textbf{Von Anfang an mit streuenden Startpunkten trainieren.} Sonst misst man etwas, das keine Fahrfähigkeit ist, und merkt es erst spät. Nebeneffekt eines festen Startpunkts: Alle Auswertungsepisoden sind identisch, die Standardabweichung ist exakt null, und man hält einen Einzelwert für einen Mittelwert.
+  \item \textbf{Auf derselben Hardware auswerten wie trainieren.} Der Unterschied zwischen CPU und GPU genügt, um eine Episode vollständig zu verändern.
+  \item \textbf{Das Zeitlimit ist kein Endzustand.} \texttt{handle\_timeout\_termination=True} setzen. In Stable-Baselines3 erzwingt \texttt{optimize\_memory\_usage=True} ohne Warnung das falsche Verhalten.
+  \item \textbf{Jede zeitbasierte Einstellung hängt an der Fahrzeugdynamik.} Ändert sich die Physik, sind Diskontfaktor, Episodenlänge, Framestapel, Zeitlimits, $v_{\text{slow}}$ und das Verhältnis von Crash-Strafe zu Fahrertrag mitzuprüfen. In Phase~1 wurde die Physik korrigiert und alles andere blieb stehen -- das hat Wochen gekostet.
+  \item \textbf{Alles protokollieren, was den Lauf bestimmt.} \texttt{train\_config.json} enthält Physik, Belohnungsfunktion, Kamera, Startstreuung, Hyperparameter, Git-Commit, Hardware und Laufzeit. Ohne das lässt sich nach zwei Wochen nicht mehr sagen, warum zwei Läufe verschiedene Zahlen liefern.
+  \item \textbf{Die erste Zielüberquerung darf die Zeitmessung nur starten}, nicht als Rundenzeit gewertet werden.
+  \item \textbf{Den Seed einmal säen, nicht bei jedem Reset.}
+  \item \textbf{Aufzeichnung und Training müssen denselben Renderpfad nutzen.}
+\end{enumerate}
+
+\section{Erkenntnisse -- Lessons und Best Practices}
+\label{sec:lessons}
+
+Aus den beiden Phasen lassen sich Regeln ableiten, die über dieses Projekt hinaus gelten dürften.
+
+\paragraph{1. Stelle zuerst eine billige Referenz her.}
+Der Lidar-Kontrollversuch kostete \SI{54}{\minute} und beantwortete eine Frage, an der zuvor wochenlang gearbeitet worden war. Vor jedem teuren Experiment sollte die Frage stehen: \emph{Gibt es eine Variante derselben Aufgabe, die in Minuten statt in Tagen entscheidet, ob der Aufbau überhaupt lösbar ist?}
+
+\paragraph{2. Eine Änderung pro Lauf.}
+Wo zwei Größen gleichzeitig verändert wurden, ist der Lauf als Beleg wertlos. Lauf \texttt{2347} galt lange als Nachweis, dass ein kleiner Replay-Buffer schadet -- tatsächlich waren gleichzeitig die Gradientenschritte reduziert, und die Gegenrechnung zeigt bei gleichem Update-Stand praktisch identische Werte. Auch der Spreizungsversuch \texttt{2307} leidet an dieser Schwäche.
+
+\paragraph{3. Rechne die Wahrnehmungsgrenze aus, bevor du trainierst.}
+Die Ungleichung \enquote{Verschiebung je Frame $=$ $v \cdot$ Pixel je Meter $\cdot \Delta t$ $>$ 1\,px} ist eine Zeile Rechnung und hätte Wochen gespart. Sie gilt für jede bildbasierte Regelung eines trägen Systems.
+
+\paragraph{4. Berichte Spitzenwert, Endstand und Episodenlänge gemeinsam.}
+Eine Bestauswertung ohne entsprechende Bewegung in \texttt{rollout/ep\_rew\_mean} ist ein Ausreißer, kein Können. Bei fester Terminalstrafe kippt die Kennzahl an einer Schwelle, statt zu steigen -- deshalb gehört die Episodenlänge unbedingt dazu.
+
+\paragraph{5. Rechne nach, ab welcher Episodenlänge sich eine Terminalstrafe amortisiert.}
+Und prüfe, ob der Agent diese Länge überhaupt erreichen kann. Andernfalls optimiert er faktisch nur \enquote{nicht crashen} und lernt zu kriechen.
+
+\paragraph{6. Zufällige Startlagen von Anfang an.}
+Ein fester Startpunkt misst nicht Fahrfähigkeit, sondern Wiederholbarkeit -- und liefert eine Standardabweichung von null, die Präzision vortäuscht, wo keine Variation stattfindet.
+
+\paragraph{7. Jede Zahl nur an einer Stelle definieren.}
+Werte aus dem Objekt lesen statt aus einer Variablen zu wiederholen, den Git-Commit samt \texttt{dirty}-Flag mitprotokollieren und für die Belohnungs\emph{formel} eine eigene Versionskennung führen -- nicht nur für ihre Gewichte.
+
+\paragraph{8. Ändere die Fahrzeugdynamik nie isoliert.}
+Diskontfaktor, Episodenlänge, Framestapel, Zeitlimits und Strafschwellen hängen sämtlich an Zeitskalen, die sich mit ihr verschieben.
+
+\paragraph{9. Ein Test, der den Randfall nicht erzwingt, prüft die halbe Implementierung.}
+Der Ringpuffer-Test lief mit halbleerem Puffer, der Ring lief nie um, und der fehlerhafte Pfad wurde nie ausgeführt.
+
+\paragraph{10. Halte negative Ergebnisse fest.}
+Der gespreizte Framestapel, das $\gamma$-Experiment und die Unfähigkeit des vortrainierten Netzes zu fahren sind jeweils sauber dokumentierte Fehlschläge mit benennbarer Ursache. Sie sind für die nächste Projektphase wertvoller als die guten Zahlen aus Phase~1, die sich teilweise als Artefakte erwiesen haben.
+
+\paragraph{Offene Punkte.}
+Folgende Fragen konnten in Phase~1 nicht abschließend geklärt werden und werden in Anhang~\ref{chap:anhang_b} als offene Belege geführt:
+\begin{itemize}
+  \item Ob das Vortraining seinen Aufwand wert ist -- ein \ac{SAC}-Lauf ohne Backbone wurde nie gefahren.
+  \item Warum \ac{SAC}-Läufe nach ihrem Höhepunkt einbrechen; die Critic-Divergenz ist beschrieben, ihre Ursache nicht geklärt.
+  \item Wie ein realer Fahrtregler auf gleichzeitiges Gas und Bremsen reagiert -- der Agent nutzt beides in über der Hälfte der Frames, das Modell nimmt Superposition an, und das ist eine Annahme, keine Messung.
+  \item Die Abweichung zwischen dem implementierten Radstand von \SI{58}{\milli\meter} und der Differenz der gemessenen Achsabstände von \SI{48}{\milli\meter}.
+\end{itemize}

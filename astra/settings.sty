@@ -1,0 +1,241 @@
+% settings.sty
+% Zusätzliche Pakete & Einstellungen für den Projektbericht
+
+\ProvidesPackage{settings}[15.04.2026 v1.0 Settings for a academic report]
+
+% ========================================
+% VORBEREITUNG FÜR TITELSEITE (etoolbox für \ifdefstring)
+% ========================================
+\usepackage{etoolbox}
+
+% ========================================
+% METADATEN FÜR TITELSEITE (ANPASSEN!)
+% ========================================
+\newcommand*{\Title}{Autonome Fahrzeugsteuerung für Carrera Hybrid mittels Deep Reinforcement Learning}
+\newcommand*{\Subtitle}{Konzeption, 2D-Prototyping und empirische Evaluation einer sample-effizienten Teacher-Student-Pipeline als Grundlage für den Transfer in die 3D-Simulation}
+
+% Zwei Verfassende. \Name wird von der Eigenständigkeitserklärung und der
+% Kopfzeile genutzt und fasst beide zusammen.
+\newcommand*{\NameA}{Felix Faaß}
+\newcommand*{\IdA}{[Matrikelnummer]}
+\newcommand*{\NameB}{Magnus Neumann}
+\newcommand*{\IdB}{[Matrikelnummer]}
+\newcommand*{\Name}{\NameA{} und \NameB}
+
+\newcommand*{\Location}{Karlsruhe}
+\newcommand*{\DeliveryDate}{[Abgabedatum]}
+
+\newcommand*{\University}{Hochschule Karlsruhe}
+\newcommand*{\Faculty}{Fakultät für Maschinenbau und Mechatronik}
+\newcommand*{\Studiengang}{Robotik und Künstliche Intelligenz in der Produktion}
+
+\newcommand*{\DocName}{Forschungs- und Entwicklungsprojekt}
+
+% Wird vom Projektbericht-Deckblatt nicht benötigt (es wird kein akademischer
+% Grad erworben), bleibt aber definiert, damit sich die Original-Titelseite der
+% Vorlage jederzeit wieder einsetzen lässt.
+\newcommand*{\Degree}{Bachelor of Engineering}
+\newcommand*{\DegreeShort}{B. Eng.}
+\newcommand*{\CoSupervisor}{}
+
+\newcommand*{\Supervisor}{Prof.~Dr.-Ing.~habil.~Björn~Hein}
+
+\newcommand*{\CompanyName}{NoCompanyInvolved} % Firmenname oder "NoCompanyInvolved" für keinen Firmenbetreuer
+\newcommand*{\CompSupervisor}{}
+
+% ========================================
+% SCHRIFTARTEN (Deutsche Typografie-Regeln)
+% ========================================
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern} % Latin Modern (gute deutsche Zeichensätze)
+
+% ========================================
+% BILD- & GRAFIK-UNTERSTÜTZUNG
+% ========================================
+\usepackage{import}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18} % Empfohlen für die aktuelle PGFPlots-Version
+\usepackage{graphicx}
+\graphicspath{{figures/}} % Alle Grafiken liegen im figures/-Verzeichnis
+% Logos vertikal zentriert ausrichten
+\newcommand{\centerlogo}[2][1.5cm]{%
+  \raisebox{-0.5\height}{\includegraphics[height=#1]{#2}}%
+}
+
+% Logos oben bündig ausrichten
+\newcommand{\toplogo}[2][1.5cm]{%
+  \raisebox{-\height}{\includegraphics[height=#1]{#2}}%
+}
+
+% Bildunterschriften mit capt-of-KOMA-Kompatibilität
+% \usepackage{capt-of} % >>>>> !!!!! KOLIDIERT MIT SCRBOOK !!!!! <<<<<
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup[figure]{labelfont=bf,textfont=normalfont,format=plain}
+\captionsetup[table]{labelfont=bf,textfont=normalfont,format=plain}
+
+% ========================================
+% Nomenklatur
+% ========================================
+\usepackage[intoc]{nomencl}      % intoc = Eintrag im Inhaltsverzeichnis
+\renewcommand{\nomname}{Nomenklatur} % Kapitelüberschrift
+\makenomenclature
+
+% ========================================
+% TABELLEN
+% ========================================
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{tabularx}
+
+% ========================================
+% LISTEN & AUFZÄHLUNGEN
+% ========================================
+\usepackage{enumitem}
+\setlist{nosep} % Reduziere Abstände in Listen
+
+% ========================================
+% ABKÜRZUNGEN
+% ========================================
+\usepackage[printonlyused]{acronym}
+
+% ========================================
+% CODE & QUELLTEXT
+% ========================================
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{gray!30},
+  backgroundcolor=\color{gray!5},
+  keywordstyle=\color{blue!70!black},
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!60!black},
+  tabsize=2,
+  captionpos=t,
+  showspaces=false,
+  showstringspaces=false,
+  literate=%
+    {ä}{{\"a}}1 {ö}{{\"o}}1 {ü}{{\"u}}1
+    {Ä}{{\"A}}1 {Ö}{{\"O}}1 {Ü}{{\"U}}1 {ß}{{\ss}}1
+}
+
+% ========================================
+% MATHEMATIK & FORMELN
+% ========================================
+\usepackage{amsmath, amssymb, amstext}
+\usepackage{mathtools}
+\usepackage{siunitx} % SI-Einheiten
+% Deutsches Dezimalkomma. Bewusst nicht ueber die (in siunitx 3 entfernte)
+% Option "locale" gesetzt, damit die Vorlage mit siunitx 2 und 3 uebersetzt.
+\sisetup{output-decimal-marker = {,}, per-mode = symbol}
+% Nicht-SI-Einheiten, die in diesem Bericht vorkommen
+\DeclareSIUnit{\px}{px}
+\DeclareSIUnit{\fps}{fps}
+
+% ========================================
+% QUERFORMAT & SEITENLAYOUT
+% ========================================
+\usepackage[
+  a4paper,
+  left=2.5cm,    % linker Rand
+  right=2.5cm, % rechter Rand
+  top=2.5cm,   % oberer Rand
+  bottom=2.0cm,% unterer Rand
+  head=40pt,   % Platz fuer das 1,4 cm hohe Logo in der Kopfzeile.
+               % Ohne diese Angabe vergroessert scrlayer-scrpage die
+               % Kopfzeile selbst und warnt bei jedem Lauf.
+  includeheadfoot
+]{geometry}
+\usepackage{pdflscape}
+
+% ========================================
+% Farben
+% ========================================
+\usepackage{xcolor}
+\definecolor{hka_blue}{RGB}{58,104,170} % Beispiel-HKA-Blau (anpassbar)
+\definecolor{hka_red}{RGB}{214,37,6} % Beispiel-HKA-Blau (anpassbar)
+
+% ========================================
+% Kopf-/Fusszeile
+% ========================================
+\usepackage[automark]{scrlayer-scrpage}
+\pagestyle{scrheadings}
+% Alle voreingestellten Kopf-/Fußzeilen löschen
+\clearpairofpagestyles
+% Logo in der Außenkopfleiste:
+% bei zweiseitig = links auf geraden, rechts auf ungeraden Seiten
+\ohead{%
+  \centerlogo[1.4cm]{png/hka_logo}%
+  \ifdefstring{\CompanyName}{NoCompanyInvolved}{}{
+    \hspace{0.0cm}%
+    \centerlogo[1cm]{example-image-a}%
+  }%
+}
+\ihead{\headmark}
+% Seitenzahl in der Fußzeile zentriert
+\cfoot{\pagemark}
+% Optional: auch auf Kapitelanfangsseiten Kopfzeile anzeigen
+% \renewcommand*{\chapterpagestyle}{scrheadings}
+
+% ========================================
+% SONSTIGES
+% ========================================
+\usepackage{microtype} % Feineinstellung der Typografie
+
+% Lange Datei- und Pfadnamen in \texttt duerfen umbrechen. Ohne das ragen
+% Bezeichner wie \texttt{framestapel_gespreizt.py} in den Seitenrand.
+\makeatletter
+\g@addto@macro\ttfamily{\hyphenchar\font=`\-}
+\makeatother
+\setlength{\emergencystretch}{2em}
+
+\usepackage{placeins}  % Floats fixieren: \FloatBarrier
+\usepackage{scrhack}   % KOMA mit anderen Paketen harmonisieren
+\usepackage{makecell}  % Zeilenumbruch in Tabellenzellen
+\usepackage{hyperref}  % Hyperlinks
+\hypersetup{
+	%hyperindex=true,
+	%linktocpage=true, % Page number linked instead of title
+	colorlinks=true,
+	linkcolor=black,
+	filecolor=black,
+	urlcolor=black,
+	pdftitle={\Title},
+	pdfauthor={\NameA, \NameB},
+	citecolor=black,
+	pdfpagemode=UseNone, % No automatic view setting
+	pdfstartpage=1,      % Starts on the first page
+	pdfstartview=Fit     % Shows the entire page in the window
+}
+
+% ========================================
+% PLATZHALTER FÜR NOCH NICHT ERZEUGTE ABBILDUNGEN
+% ========================================
+% Bewusst auffällig gesetzt, damit im fertigen PDF sofort sichtbar ist,
+% welche Belege noch fehlen. Argument: Beschreibung des geplanten Inhalts.
+% Verwendung wie \includegraphics, also innerhalb einer figure-Umgebung.
+\newcommand{\platzhalterbild}[2][0.8\linewidth]{%
+  \setlength{\fboxrule}{1pt}%
+  \textcolor{hka_red}{\fbox{%
+    \parbox[c][3.2cm][c]{#1}{%
+      \centering\normalfont\color{black}%
+      \textcolor{hka_red}{\textbf{Platzhalter -- Abbildung noch zu erzeugen}}\\[0.3em]
+      \small #2%
+    }%
+  }}%
+}
+
+% ========================================
+% FONTS (optional, für bessere Lesbarkeit)
+% ========================================
+% Uncomment if you want to use Palatino / other fonts:
+% \usepackage{mathpazo}
+% \usepackage{helvet}
+\usepackage{setspace}
+
+% Ende settings.sty
+\endinput

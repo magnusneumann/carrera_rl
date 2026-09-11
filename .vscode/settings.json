@@ -1,0 +1,70 @@
+{
+  // ===================================================================
+  // LaTeX Workshop (James-Yu.latex-workshop)
+  //
+  // Baut astra/main.tex mit demselben Ablauf wie das beiliegende
+  // Makefile: pdflatex -> biber -> makeindex (Nomenklatur) -> pdflatex x2.
+  // Der reine latexmk-Standardablauf wuerde die Nomenklatur auslassen.
+  //
+  // Voraussetzung: eine LaTeX-Distribution im PATH (z. B. MiKTeX).
+  // ===================================================================
+  "latex-workshop.latex.rootFile.useSubFile": false,
+  "latex-workshop.latex.autoBuild.run": "never",
+  "latex-workshop.latex.outDir": "%DIR%",
+
+  "latex-workshop.latex.tools": [
+    {
+      "name": "pdflatex",
+      "command": "pdflatex",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "%DOC%"
+      ],
+      "env": {}
+    },
+    {
+      "name": "biber",
+      "command": "biber",
+      "args": ["%DOCFILE%"],
+      "env": {}
+    },
+    {
+      "name": "nomenclature",
+      "command": "makeindex",
+      "args": [
+        "%DOCFILE%.nlo",
+        "-s",
+        "nomencl.ist",
+        "-o",
+        "%DOCFILE%.nls"
+      ],
+      "env": {}
+    }
+  ],
+
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "astra: voll (pdflatex + biber + nomencl + pdflatex x2)",
+      "tools": ["pdflatex", "biber", "nomenclature", "pdflatex", "pdflatex"]
+    },
+    {
+      "name": "astra: schnell (nur pdflatex)",
+      "tools": ["pdflatex"]
+    }
+  ],
+
+  "latex-workshop.latex.recipe.default": "first",
+
+  // Hilfsdateien aufraeumen, PDF behalten
+  "latex-workshop.latex.clean.fileTypes": [
+    "*.aux", "*.bbl", "*.blg", "*.idx", "*.ind", "*.lof", "*.lot",
+    "*.out", "*.toc", "*.acn", "*.acr", "*.alg", "*.glg", "*.glo",
+    "*.gls", "*.fls", "*.log", "*.fdb_latexmk", "*.snm", "*.nav",
+    "*.vrb", "*.bcf", "*.run.xml", "*.nlo", "*.nls", "*.ilg", "*.synctex.gz"
+  ],
+
+  // PDF im VS-Code-Tab statt im externen Viewer anzeigen
+  "latex-workshop.view.pdf.viewer": "tab"
+}

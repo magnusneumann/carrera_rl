@@ -1,0 +1,91 @@
+\documentclass[
+  11pt,                % Schriftgröße
+  a4paper,             % Papierformat
+  headsepline,         % Trennlinie unter der Kopfzeile
+  footsepline,         % Trennlinie über der Fußzeile
+  twoside,             % Zweiseitig
+  openright,           % Neue Kapitel auf rechten Seiten
+  parskip=full,        % Absatzabstand statt Einzug
+  numbers=noenddot,    % Kapitelnummern ohne abschließenden Punkt
+  listof=totoc         % Alle Verzeichnisse in Inhaltsverzeichniss
+]{scrbook}             % KOMA-Script-Klasse (empfohlen für Thesen)
+
+% ========================================
+% PAKETE & EINSTELLUNGEN
+% ========================================
+\usepackage{settings} % Eigenes Paket mit weiteren Einstellungen
+
+% Gliederungstiefe: Der Hauptteil braucht eine dritte Ebene (z. B. 3.1.2.4),
+% das Inhaltsverzeichnis bleibt dagegen bei zwei Ebenen übersichtlich.
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{2}
+
+% Spracheinstellungen (Deutsch)
+\usepackage[ngerman]{babel}
+\usepackage[babel,german=quotes]{csquotes}
+
+% Literaturverwaltung: BibLaTeX mit Biber
+\usepackage[
+  backend=biber,
+  style=ieee,
+  sorting=none,
+  maxcitenames=2,
+  maxbibnames=99,
+  isbn=false,
+   url=false,
+   doi=false,
+   eprint=false
+]{biblatex}
+\addbibresource{bibliography.bib}
+
+% ========================
+% DOKUMENTSTART
+% ========================
+\begin{document}
+
+% ========================
+% VORSPANN (römische Seitenzahlen, einfacher Zeilenabstand)
+% ========================
+\frontmatter          % römische Seitenzahlen, unnummerierte Kapitel
+\setstretch{1.0}      % ungefähr Word „1,0“
+
+\include{chapters/00-titlepage}
+\include{chapters/00-declaration}
+\include{chapters/00-kurzfassung}
+
+\input{nomenclature}
+
+\tableofcontents
+\include{acronyms.tex}
+\printnomenclature
+\listoffigures
+\listoftables
+
+% ========================
+% HAUPTTEIL (arabische Seitenzahlen, 1,5-zeilig)
+% ========================
+\mainmatter           % arabische Seitenzahlen, nummerierte Kapitel
+\onehalfspacing       % ungefähr Word „1,5“
+
+\include{chapters/01-einleitung}
+\include{chapters/02-grundlagen}
+\include{chapters/03-hauptteil}
+\include{chapters/04-ergebnisse}
+\include{chapters/05-fazit}
+
+% ========================
+% QUELLENVERZEICHNIS
+% ========================
+\setstretch{1.0}
+\printbibliography[heading=bibintoc,title={Quellenverzeichnis}]
+
+% ========================
+% ANHANG (Kapitel A, B, C, ...)
+% ========================
+\appendix             % Kapitelnummern werden zu A, B, C, ...
+\onehalfspacing
+
+\include{chapters/appendix-a}
+\include{chapters/appendix-b}
+
+\end{document}
