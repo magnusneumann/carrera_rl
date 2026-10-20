@@ -1,0 +1,98 @@
+{
+  "episoden": 10,
+  "streuend": false,
+  "geraet": "cuda",
+  "ergebnisse": [
+    {
+      "beste_runde": null,
+      "max_runden": 0,
+      "mittel_runden": 0.0,
+      "max_len": 209,
+      "mittel_len": 209.0,
+      "bester_lohn": -153.731239895802,
+      "mittel_lohn": -153.731239895802,
+      "name": "09_Vision_SAC_Finetuned_20260728_2147",
+      "aufloesung": "166x100",
+      "n_stack": 3,
+      "stride": 1
+    },
+    {
+      "beste_runde": 208,
+      "max_runden": 3,
+      "mittel_runden": 3.0,
+      "max_len": 759,
+      "mittel_len": 759.0,
+      "bester_lohn": 1516.5840289145708,
+      "mittel_lohn": 1516.5840289145708,
+      "name": "09_Vision_SAC_Finetuned_20260729_2210",
+      "aufloesung": "166x100",
+      "n_stack": 3,
+      "stride": 1
+    },
+    {
+      "beste_runde": null,
+      "max_runden": 0,
+      "mittel_runden": 0.0,
+      "max_len": 33,
+      "mittel_len": 33.0,
+      "bester_lohn": -349.8208200931549,
+      "mittel_lohn": -349.8208200931549,
+      "name": "09_Vision_SAC_Finetuned_20260731_2331",
+      "aufloesung": "166x100",
+      "n_stack": 3,
+      "stride": 1
+    },
+    {
+      "beste_runde": 209,
+      "max_runden": 3,
+      "mittel_runden": 3.0,
+      "max_len": 769,
+      "mittel_len": 769.0,
+      "bester_lohn": 1506.2385029997677,
+      "mittel_lohn": 1506.2385029997677,
+      "name": "09_Vision_SAC_Finetuned_20260815_2230",
+      "aufloesung": "250x150",
+      "n_stack": 3,
+      "stride": 1
+    },
+    {
+      "beste_runde": null,
+      "max_runden": 0,
+      "mittel_runden": 0.0,
+      "max_len": 76,
+      "mittel_len": 76.0,
+      "bester_lohn": -439.45993280410767,
+      "mittel_lohn": -439.45993280410767,
+      "name": "09_Vision_SAC_Finetuned_20260816_2307",
+      "aufloesung": "250x150",
+      "n_stack": 3,
+      "stride": 4
+    },
+    {
+      "beste_runde": 202,
+      "max_runden": 9,
+      "mittel_runden": 9.0,
+      "max_len": 2000,
+      "mittel_len": 2000.0,
+      "bester_lohn": 5080.475306674838,
+      "mittel_lohn": 5080.475306674838,
+      "name": "09_Vision_SAC_Finetuned_20260818_2254",
+      "aufloesung": "250x150",
+      "n_stack": 3,
+      "stride": 1
+    },
+    {
+      "beste_runde": 198,
+      "max_runden": 2,
+      "mittel_runden": 2.0,
+      "max_len": 540,
+      "mittel_len": 540.0,
+      "bester_lohn": 1027.5928845889866,
+      "mittel_lohn": 1027.5928845889866,
+      "name": "09_Vision_SAC_Finetuned_20260820_2215",
+      "aufloesung": "250x150",
+      "n_stack": 3,
+      "stride": 1
+    }
+  ]
+}
