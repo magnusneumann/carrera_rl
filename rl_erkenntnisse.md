@@ -661,6 +661,421 @@ specification gaming, sparse vs dense rewards
 
 ---
 
+## 10b. Vollständige Übersicht aller Reward-Bestandteile
+
+Abschnitt 10 sammelt die Fehler. Dieser hier ist die Inventarliste: **jeder**
+Bestandteil, aktiv oder nicht, mit Fundstelle. Stand `v3_rundenzeit`.
+
+### Begriff
+
+Im RL gibt es keinen getrennten Mechanismus für Bestrafungen — sie sind
+negative Rewards. Englisch heißt das **penalty** (gängigster Ausdruck),
+**negative reward** (formal), **cost** (nur in Constrained RL / CMDP, dort ein
+echter zweiter Kanal neben dem Reward), **terminal penalty** (Abzug beim
+Episodenende) oder **step penalty** (pro Zeitschritt). Das Gestalten insgesamt:
+**reward shaping** bzw. **reward design**.
+
+### Namenskonvention
+
+Das Präfix `w_` steht für **Gewicht** (weight), NICHT für Omega. Omega ist in
+diesem Projekt die Winkelgeschwindigkeit `state[4]` — sie kommt im Reward
+überhaupt nicht vor. Bei `v_slow`/`w_slow` sind die Rollen verschieden:
+`v_slow = 0.6` ist die **Schwelle** in m/s (ab wann), `w_slow = 4.0` die
+**Höhe** der Strafe bei Stillstand (wie sehr).
+
+### Aktiv, jeden Frame (dense)
+
+| Komponente | Formel | Parameter |
+|---|---|---|
+| Tempo | `+v² · w_speed · 2.0` | `w_speed = 1.0` |
+| Langsam-Gefälle | `−w_slow · (v_slow−v)/v_slow`, nur bei `v < v_slow` | `v_slow = 0.6`, `w_slow = 4.0` |
+| Lenkglätte | `−abs(steer_delta) · w_smooth` | `w_smooth = 0.5` |
+
+```
+v = 1.5 m/s  →  +4.50/Frame
+v = 1.2      →  +2.88
+v = 0.6      →  +0.72     (Gefälle setzt genau hier ein)
+v = 0.3      →  +0.18 − 2.00  =  −1.82
+v = 0.0      →   0.00 − 4.00  =  −4.00
+```
+
+Der Nulldurchgang liegt bei **v ≈ 0.52 m/s**: darunter ist jeder Frame netto
+negativ, auch ohne Lenken. Das ist die Schwelle, die Stehenbleiben unattraktiv
+macht.
+
+### Aktiv, ereignisbasiert (sparse)
+
+| Komponente | Auslöser | Wert |
+|---|---|---|
+| Crash | Streckenrand berührt | −300, terminiert sofort |
+| Rundenbonus | Ziellinie vorwärts überquert | +50 |
+| Ziellinie rückwärts | `sf_crossed` bei `v < 0` | −50 |
+| Rundenzeit-Verbesserung | neue Bestzeit der Episode | `+(best − jetzt) · w_lap_improvement`, `= 5.0` |
+
+Die Falschrichtungs-Strafe stand hier ursprünglich als aktiv. Sie ist es nicht,
+siehe den nächsten Abschnitt.
+
+Zur Rundenzeit: die erste Überquerung nach dem Reset zählt NICHT als Rundenzeit
+(der Agent startet vor der Linie, nicht auf ihr), bekommt aber den Rundenbonus.
+Die erste volle Runde setzt nur die Referenz. Erst ab der zweiten kann
+Verbesserungsbonus fließen. Die Boni teleskopieren: in Summe immer
+`(erste Runde − beste Runde) · 5.0`, unabhängig von der Verteilung.
+
+### Aktiv, aber in der Umgebung statt im RewardCalculator
+
+Leicht zu übersehen, weil `to_dict()` sie nicht ausgibt und sie damit in keiner
+`train_config.json` auftauchen:
+
+| Komponente | Auslöser | Wirkung | Fundstelle |
+|---|---|---|---|
+| Reward-Boden | `episode_reward <= −3000` | −100, terminiert | `carrera_2d_env.py:458` |
+| Zeitlimit | Frame 2000 | truncated, kein Reward | `carrera_2d_env.py:462` |
+
+Der Reward-Boden ist eine Notbremse gegen endloses Falschherumfahren. Er hat
+dieselbe Struktur wie der Crash — fester Abzug bei Terminierung — und ist damit
+ein Kandidat für den Effekt aus Abschnitt 13b. Das Zeitlimit ist bewusst
+`truncated` und nicht `terminated`, damit SAC darüber hinweg bootstrappt.
+
+### Vorhanden, aber wirkungslos
+
+| Komponente | Wert | Warum |
+|---|---|---|
+| Falsche Richtung | `−30`/Frame, zusätzlich `−v · 5.0` bei `v > 0.1` | **gemessen unerreichbar**, siehe unten |
+| Rückwärts über die Ziellinie | `−lap_bonus`, also −50 | setzt `v < 0` voraus, physikalisch unmöglich |
+| Rückwärtsfahren | `w_reverse = 10.0`, `+v·10` bei `v < −0.1` | physikalisch unerreichbar: `measured_v2` erzwingt `v >= 0`. Bewusst behalten, weil Rückwärtsfahren später wieder möglich sein soll |
+| Oszillationsschutz | `w_integral = 0.0`, `osc_threshold = 2.0` | abgeschaltet. Die Schwelle 2.0 trennte nicht Zappeln von Lenken, sondern besteuerte jedes Lenken: der gut fahrende Lidar-Experte zahlte −625 über 2000 Frames, mehr als seine gesamten Rundenboni (+600). Falls je wieder an: Schwelle 6–8 |
+
+### Die Falschrichtungs-Strafe feuert nie — gemessen
+
+Sie kommt nicht aus dem Vorzeichen von `v`, sondern aus dem Vergleich der
+Fahrzeugausrichtung `theta` mit der lokalen Streckenrichtung
+(`carrera_2d_env.py:425-428`). `v > 0.1` heißt dort: das Auto steht falsch
+herum und gibt trotzdem Gas — der Geisterfahrer. Bei falscher Richtung entfällt
+zusätzlich der gesamte Tempo-Reward, es ist ein `if/else`.
+
+Nur tritt der Fall nicht ein. Gezählt über volle Episoden mit
+`start_streuung = 0.9` und `start_seite = 0.08`:
+
+```
+trainiert (01_Lidar_Baseline)     0 von 20000 Frames   =  0.00 %
+zufaellige Steuerung              0 von  3471 Frames   =  0.00 %
+Episoden mit Dreher kurz vor dem Ende:   0/10 bzw. 0/10
+```
+
+Bemerkenswert ist der zweite Wert: selbst eine **Zufallssteuerung** dreht sich
+nie um. Der Grund ist geometrisch — bei ±0.127 m Restbreite und 30° maximalem
+Lenkwinkel trifft das Auto die Wand, lange bevor es 90° Drehung erreicht.
+
+Für die Auswertung heißt das: die Strafe gehört in dieselbe Schublade wie
+`w_reverse`. Im Code vorhanden, durch die Streckengeometrie unerreichbar. Wer
+sie in einer Beschreibung der Belohnungsfunktion als wirksamen Bestandteil
+führt, beschreibt etwas, das nie gefeuert hat.
+
+In Isaac kann sich das ändern: sobald die Strecke breiter ist oder Rückwärts-
+fahren wieder möglich wird, ist der Fall erreichbar. Dann sollte die Strafe
+erneut geprüft werden, statt sie ungeprüft mitzunehmen.
+
+### Der Reward-Boden feuert ebenfalls nie — gemessen
+
+Gezählt über je 30 Episoden, wodurch sie tatsächlich enden:
+
+```
+                Crash   Reward-Boden   Zeitlimit   schlechteste Episode
+trainiert           0              0          30              +6453.7
+zufaellig          30              0           0              -2479.4
+```
+
+Bei diesen beiden nicht ein einziges Mal ausgelöst. Das war aber die falsche
+Stichprobe, und der erste Schluss daraus ("der Boden ist toter Code") war
+falsch. Beide Extreme koennen ihn gar nicht erreichen: der gute Agent wird nie
+negativ, die Zufallssteuerung crasht nach rund 350 Frames. Mit einem SCHWACHEN
+Agenten - 2254 aus streuenden Starts, also ausserhalb seiner Trainingsverteilung -
+sieht es anders aus:
+
+```
+2254 aus streuenden Starts:  Crash 11   Reward-Boden 9   Zeitlimit 0
+mittlere Episodenlaenge 571, kuerzeste 47, laengste 1516
+```
+
+**9 von 20 Episoden.** Der Boden greift genau im Zwischenfall: schlecht genug,
+um dauerhaft Minus zu sammeln, aber nicht schlecht genug, um sofort zu crashen.
+Das ist der Fall, fuer den er gedacht war, und in der fruehen Trainingsphase ist
+es der Normalfall.
+
+Methodische Lehre: eine Komponente auf "feuert nie" zu pruefen verlangt eine
+Stichprobe, die den Zustandsbereich abdeckt, in dem sie feuern KANN. Guter
+Agent und Zufall sind beide ungeeignet - der eine ist zu gut, der andere stirbt
+zu schnell.
+
+Damit sind die -100 in der Praxis wirkungslos. Theoretisch sind sie es fast
+auch, und der Grund ist grundsätzlicher Natur: **RL bewertet nur die Zukunft.**
+In dem Moment, in dem der Boden greift, sind die -3000 längst Frame für Frame
+ausgezahlt. Was am Zustand hängt, sind ausschließlich die -100 und danach
+Schluss. Die -100 sind nicht ein Zuschlag zu -3000, sie sind das **gesamte**
+Signal.
+
+Und sie zeigen in die falsche Richtung:
+
+```
+Agent steht bei v = 0, noch 1250 Frames uebrig
+  weiterfahren (erfolglos)   1250 x (-4)  =  -5000
+  Boden ausloesen                            -100
+```
+
+Der Abbruch ist 50-mal besser als das Weitermachen. Der Reward-Boden bestraft
+nicht, er **erloest**. Um abzuschrecken, muesste er unter -5000 liegen.
+
+Was er leistet, ist Stichprobeneffizienz: er schneidet aussichtslose Episoden
+ab, statt 2000 Frames Rechenzeit darauf zu verbrennen. Bei einem schwachen
+Agenten betrifft das fast die Haelfte aller Episoden.
+
+### Der Reward-Boden setzt terminated statt truncated
+
+Dabei wiederholt er den Fehler, den wir beim Zeitlimit bereits behoben haben.
+`carrera_2d_env.py:458` setzt `terminated = True`. Der Kritiker lernt daraus:
+"an diesem Zustand endet die Welt, Wert exakt -100." Das stimmt nicht - das
+Auto haette weiterfahren koennen, abgebrochen hat der Trainer. Es ist ein
+kuenstlicher Schnitt, kein Endzustand des MDP, und gehoert damit in dieselbe
+Kategorie wie das Zeitlimit (Abschnitt 13b): `truncated`, mit Bootstrapping
+ueber die Grenze hinweg.
+
+Betroffen sind genau die schwachen Agenten, also die fruehe Trainingsphase und
+schwere Startbedingungen. Als Kandidat fuer den Einbruch nach dem Hoehepunkt
+(Abschnitt 13d) ist das noch nicht geprueft, aber die Fehlerklasse passt.
+
+### Crashen ist NICHT billiger als schlecht fahren - eine widerlegte Vermutung
+
+Dieselbe Rechnung auf den Crash angewendet, und hier wird sie relevant:
+
+```
+Agent bei v = 0.2, noch 1500 Frames, kommt nicht auf Tempo
+  weiterfahren   1500 x (-2.6)  =  -3900
+  in die Wand                      -300
+```
+
+Absichtliches Crashen ist rund 13-mal guenstiger als schlechtes Fahren. Das ist
+das klassische *suicide problem* negativer Rewardregime: sobald der erwartete
+Rest einer Episode schlechter ist als die Terminalstrafe, wird Aufgeben optimal.
+
+Diese Rechnung ist falsch, und zwar zirkulaer. Sie unterstellt, dass der Agent
+1500 Frames lang nicht beschleunigt - also genau das Aufgeben, das sie erklaeren
+sollte. Realistisch gerechnet:
+
+```
+von 0.2 auf 1.2 m/s bei 0.25 m/s^2   =  4 s  =  120 Frames
+Kosten waehrend der Erholung                   ~  -120
+danach 1380 Frames a +2.88                     ~ +3974
+                                               ---------
+Erholung                                         +3850
+Crash                                             -300
+```
+
+Erholung ist rund 4000 Reward besser als Crashen. Der Aufgeb-Anreiz existiert
+nur, wenn Erholung unmoeglich ist - bei 0.25 m/s^2 dauert sie vier Sekunden.
+
+**Gemessen**, was Agenten im langsamen Zustand wirklich tun (ab Frame 30, um den
+Start auszuschliessen), aus streuenden Starts:
+
+```
+                            langsam (v<0.5)        schnell        Crashquote
+                            Gas     Bremse      Gas     Bremse
+Lidar-Experte              +1.000   +0.000     +0.570  +0.281       0/20
+2215 (streuend trainiert)  +0.903   +0.217     +0.626  +0.427      19/20
+2254 (fest trainiert)      +0.178   +0.518     +0.603  +0.417      10/20
+```
+
+Beide Agenten, die diese Zustaende kennen, geben Vollgas, wenn sie langsam sind -
+mehr als bei hohem Tempo. Nur 2254 bremst.
+
+Der entscheidende Vergleich ist 2254 gegen 2215: **beide unterliegen demselben
+Reward.** Wuerde die Belohnungsfunktion Aufgeben praemieren, haette 2215 es
+ebenfalls gelernt - er hat diese Zustaende tausendfach gesehen. Er hat das
+Gegenteil gelernt. 2254s Bremsen ist damit Covariate Shift, keine
+Reward-Optimierung: von festem Start trainiert, sieht er hier Zustaende
+ausserhalb seiner Verteilung.
+
+**Schlussfolgerung:** die milde Crashstrafe ist richtig kalibriert. Fuer eine
+Rennaufgabe ist sie sogar die bessere Wahl - eine harte Crashstrafe erzeugt
+einen Agenten, der mit 0.5 m/s kriecht und nie anstoesst, im Reward gut und als
+Rennwagen wertlos. Uebervorsichtigkeit ist bei Rennaufgaben der haeufigere
+Fehler als das Gegenteil.
+
+Der Anreiz bliebe theoretisch bestehen, falls Erholung teuer wuerde: bei
+traegerer Beschleunigung, laengeren Episoden oder einer Strecke, auf der man
+sich festfahren kann. Fuer Isaac ist das im Blick zu behalten, nicht zu
+uebernehmen. Gegenmittel waeren dann ein Ueberlebensbonus pro Frame oder eine
+Terminalstrafe, die mit der Restlaufzeit skaliert statt fest zu sein.
+
+*Suchbegriffe:* suicide problem reinforcement learning, negative reward
+termination bias, survival bonus, potential-based reward shaping invariance
+
+### Die tote Zone ist kein Nullbetrag, sondern ein flacher Gradient
+
+Haeufige Fehllesung: "zwischen 0.1 und 0.5 m/s gab es weder Belohnung noch
+Strafe". Der Geschwindigkeits-Bonus gilt dort sehr wohl - er ist nur
+**numerisch bedeutungslos**, weil er quadratisch ist:
+
+```
+v = 0.1  ->  +0.02        v = 0.5  ->  +0.50
+v = 0.2  ->  +0.08        v = 1.2  ->  +2.88
+v = 0.3  ->  +0.18        v = 1.5  ->  +4.50
+v = 0.4  ->  +0.32
+```
+
+Bei v = 0.3 bringt Fahren +0.18 pro Frame, waehrend eine einzelne Lenkbewegung
+bis zu -0.25 kostet (`max_steer_change = 0.5` mal `w_smooth = 0.5`). Das
+Nutzsignal liegt unter dem Rauschen der uebrigen Terme.
+
+Entscheidend ist aber die **Steigung**, denn sie bestimmt, was gelernt wird:
+
+```
+d/dv (2v^2) = 4v          bei v = 0.3  ->  1.2 pro m/s
+                          bei v = 1.2  ->  4.8 pro m/s     viermal so steil
+```
+
+Der Anreiz, schneller zu werden, ist genau dort am schwaechsten, wo der Agent
+ihn am dringendsten braucht. So hat das Gefaelle das behoben:
+
+```
+d/dv (Gefaelle) = w_slow / v_slow = 4.0 / 0.6 = 6.67 pro m/s, konstant
+```
+
+Ein konstanter, steiler Gradient ueber den gesamten langsamen Bereich, 5.5-mal
+staerker als der quadratische Term bei v = 0.3. Die alte Klippe konnte das
+nicht: -15 im Band +/-0.1, ab 0.11 m/s exakt nichts mehr. Grosser Sprung beim
+Verlassen des Bandes, danach flach.
+
+Verallgemeinert: bei der Reward-Gestaltung zaehlt nicht, ob ein Term vorhanden
+ist, sondern ob seine **Ableitung** in dem Zustandsbereich gross genug ist, in
+dem das Verhalten sich aendern soll.
+
+### Lenkglaettung und Oszillationsschutz messen dieselbe Groesse
+
+```
+Lenkglaettung        -|d_t| * 0.5                        jeder Frame, sofort
+Oszillationsschutz   -(Summe|d| ueber 30 Frames - 2.0) * w   Fenster, Freibetrag
+```
+
+Der Unterschied sieht nach momentan gegen kumulativ aus. Der Oszillationsschutz
+sollte auffangen, was der Einzelframe-Term unterbewertet: schnelles Hin und Her
+mit je kleinen Aenderungen, aber grosser Summe.
+
+Das kann er nicht, und der Grund ist mathematisch. Beide summieren **Betraege**:
+
+```
+Zappeln       +0.2, -0.2, +0.2, -0.2, ...   Summe|d| = 6.0   netto  0.0
+zuegige Kurve +0.2, +0.2, +0.2, +0.2, ...   Summe|d| = 6.0   netto  6.0
+```
+
+Identische Strafe. Der Term wirft die Information weg, die den Unterschied
+ausmacht - das **Vorzeichen** - und ist damit nur eine gefensterte, mit
+Freibetrag versehene Kopie der Lenkglaettung.
+
+Das ordnet den gemessenen Befund neu ein: die Schwelle 2.0 war nicht unglücklich
+gewaehlt, der Term war **falsch konstruiert**. Keine Schwelle haette ihn
+gerettet. Ein echter Detektor braucht
+
+```
+Summe|d| / |Summe d|   = 1    reines Lenken
+                       -> gross    reines Zappeln
+```
+
+oder schlicht die Zahl der Vorzeichenwechsel im Fenster.
+
+### Historisch, aus dem Code entfernt
+
+`standstill_penalty` (−15.0) war eine Klippe: sie galt nur im schmalen Band
+`−0.1 <= v <= 0.1` und außerhalb gar nicht. Ersetzt durch das lineare Gefälle,
+siehe oben.
+
+Häufiges Missverständnis dazu: der dokumentierte Grund für die Ablösung ist
+NICHT, dass der Agent beim Anfahren zu hart bestraft wurde, sondern das
+Gegenteil — oberhalb von 0.1 m/s gab es überhaupt keine Rückmeldung mehr, und
+zwischen 0.1 und 0.5 m/s entstand eine tote Zone. Genau dort landet das Auto
+nach jeder Kurvenbremsung.
+
+Der Anfahr-Effekt existiert aber ebenfalls, nur als Wechselwirkung mit dem
+Reward-Boden: −15 pro Frame im Stillstand erreicht die Schwelle von −3000 nach
+**exakt 200 Frames**. Ein Agent, der nicht losfuhr, wurde also nach 6.7
+Sekunden abgebrochen. Mit dem heutigen `w_slow = 4.0` sind es 750 Frames — der
+Boden greift damit deutlich später.
+
+Bei den beiden Rundenzeit-Parametern ist die Lage komplizierter, und sie wird
+leicht falsch gelesen. Es gab jeweils ZWEI Fassungen derselben Idee — eine, die
+in der Config stand, und eine, die tatsächlich lief. Sie unterschieden sich
+nicht nur im Wert, sondern in der **Form**:
+
+**Idee A, neue Bestzeit belohnen**
+
+| Fassung | Wert | Form | lief |
+|---|---|---|---|
+| `best_lap_bonus` in der Config | 200.0 | pauschal, unabhängig vom Betrag | **nie gelesen** |
+| hartcodiert im Code | 5.0 | proportional, pro eingespartem Frame | ja, durchgehend |
+| heute `w_lap_improvement` | 5.0 | proportional, identische Formel | ja |
+
+**Idee B, langsamere Runde bestrafen**
+
+| Fassung | Wert | Form | lief |
+|---|---|---|---|
+| `slow_lap_penalty` in der Config | −30.0 | pauschal | **nie gelesen** |
+| hartcodiert im Code | 2.0 | proportional, pro verlorenem Frame | ja, bis v3 |
+| heute | — | ersatzlos gestrichen (Sperrklinke, Abschnitt 10) | nein |
+
+Daraus folgen drei Dinge, die man beim Zitieren auseinanderhalten muss:
+
+1. **Es gab nie einen Wechsel von 200 auf 5.** Die 200 hat zu keinem Zeitpunkt
+   gefeuert. `w_lap_improvement = 5.0` ist zeichengleich dieselbe Rechnung, die
+   vorher schon lief — sie hatte nur keinen Namen. Der einzige echte Unterschied
+   zwischen alt und neu ist die `erste_ueberquerung`-Sperre, die den Bonus
+   überhaupt erst funktionsfähig machte.
+2. **Pauschal gegen proportional ist keine Kosmetik.** 200 hätte es für jede
+   Verbesserung gegeben, auch für einen einzigen Frame. Proportional bringt
+   1 Frame +5 und 20 Frames +100. Die Pauschale hätte Mikro-Verbesserungen
+   massiv überbezahlt und damit einen ganz anderen Anreiz gesetzt.
+3. **Alle Konfigurationen vor `v3_rundenzeit`** (bis einschließlich
+   `09_Vision_SAC_Finetuned`) enthalten zwei Zahlen ohne Wirkung. Wer daraus
+   zitiert, zitiert nicht die tatsächliche Belohnungsfunktion.
+
+### Hartcodierte Faktoren ohne Parameternamen
+
+Drei Zahlen wirken auf den Reward, tauchen aber in keiner `train_config.json`
+auf, weil `to_dict()` sie nicht sieht:
+
+| Zahl | Wirkung | Fundstelle |
+|---|---|---|
+| `5.0` | Zusatzstrafe für Gas in falscher Richtung, `−v · 5.0` | `reward_func.py:105` |
+| `−100` | Abzug beim Reward-Boden | `carrera_2d_env.py:459` |
+| `−3000` | Schwelle des Reward-Bodens | `carrera_2d_env.py:458` |
+
+Vor Isaac sollten die einen Namen bekommen — sonst wiederholt sich der Fehler,
+den `best_lap_bonus` schon einmal verursacht hat, nur mit umgekehrtem
+Vorzeichen: dort standen Zahlen ohne Wirkung, hier wirken Zahlen ohne Eintrag.
+
+### Größenordnungen
+
+Der Teil, der beim Lesen des Codes untergeht:
+
+```
+gute Episode, 2000 Frames à ~1.2 m/s      ≈ +5760   Tempo
+9 Runden                                  ≈  +450   Rundenboni
+Rundenzeit-Verbesserung (typisch)         ≈  +100
+Crash am Ende                                −300
+```
+
+Tempo dominiert um eine Größenordnung. Der Crash entspricht etwa den letzten
+100 Frames Fahrt — kein Weltuntergang, sondern ein Fahrfehler mit Nachspiel.
+Der Rundenbonus ist 17 Frames Vollgas wert. Im Kern ist dies ein
+**Tempo-Reward mit Verzierungen**; alle anderen Terme korrigieren nur am Rand.
+
+Das erklärt auch, warum die Rundenzeit-Reparatur (Abschnitt 10) so viel
+bewirkte: nicht weil der Term groß ist, sondern weil er als einziger die
+*Konsistenz über eine ganze Runde* belohnt statt nur den Momentanzustand.
+
+*Suchbegriffe:* penalty vs cost, constrained MDP, dense vs sparse reward,
+terminal penalty, reward component ablation
+
+---
+
 ## 11. Messmethodik: Stolpersteine
 
 ### `eval_freq` wird pro Env gezählt
