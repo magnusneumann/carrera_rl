@@ -41,6 +41,38 @@
         "%DOCFILE%.nls"
       ],
       "env": {}
+    },
+    // Docker-Varianten (ohne lokale Distribution, Image texlive/texlive:latest)
+    {
+      "name": "pdflatex-docker",
+      "command": "%WORKSPACE_FOLDER%/.vscode/texdocker.sh",
+      "args": [
+        "pdflatex",
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "%DOC%"
+      ],
+      "env": {}
+    },
+    {
+      "name": "biber-docker",
+      "command": "%WORKSPACE_FOLDER%/.vscode/texdocker.sh",
+      "args": ["biber", "%DOCFILE%"],
+      "env": {}
+    },
+    {
+      "name": "nomenclature-docker",
+      "command": "%WORKSPACE_FOLDER%/.vscode/texdocker.sh",
+      "args": [
+        "makeindex",
+        "%DOCFILE%.nlo",
+        "-s",
+        "nomencl.ist",
+        "-o",
+        "%DOCFILE%.nls"
+      ],
+      "env": {}
     }
   ],
 
@@ -52,10 +84,19 @@
     {
       "name": "astra: schnell (nur pdflatex)",
       "tools": ["pdflatex"]
+    },
+    {
+      "name": "astra: voll via Docker",
+      "tools": ["pdflatex-docker", "biber-docker", "nomenclature-docker", "pdflatex-docker", "pdflatex-docker"]
+    },
+    {
+      "name": "astra: schnell via Docker",
+      "tools": ["pdflatex-docker"]
     }
   ],
 
-  "latex-workshop.latex.recipe.default": "first",
+  // Zuletzt gewaehltes Rezept merken (z. B. Docker-Variante)
+  "latex-workshop.latex.recipe.default": "lastUsed",
 
   // Hilfsdateien aufraeumen, PDF behalten
   "latex-workshop.latex.clean.fileTypes": [

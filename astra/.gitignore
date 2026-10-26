@@ -9,7 +9,6 @@
 *.out
 *.fls
 *.fdb_latexmk
-*.pdf
 *.dvi
 *.ps
 *.thm
