@@ -1,0 +1,189 @@
+% 05-umsetzung-3d.tex  --  Teil Felix (Phase 2), Stand: Arbeit V14 - Claude.docx (26.10.2026)
+% Bilder liegen in chapters/felix_teil/bilder/ (Pfade relativ zu main.tex).
+\chapter{Umsetzung in 3D (Isaac Sim / Isaac Lab)}
+\label{chap:umsetzung3d}
+
+In Phase~1 wurde gezeigt, dass ein Agent lernen kann, ein Fahrzeug anhand eines Kamerabildes der Strecke und des Autos zu steuern. Die Umgebung ist dort jedoch zugunsten von Rechenzeit und Aufwand stark vereinfacht. Aufgrund dieses einfachen Aufbaus sind die trainierten Agenten nicht geeignet, ein reales Fahrzeug zu steuern.
+
+Ziel dieses Kapitels ist daher, das Training in eine physikalisch simulierte, dreidimensionale und realitätsnah gerenderte Umgebung zu übertragen und zu klären, welche Anpassungen dafür nötig sind und wie weit der so trainierte Agent trägt. Als Simulationsplattform dient Isaac Sim; die Lernumgebung wird mit Isaac Lab aufgebaut, das auf Isaac Sim aufsetzt und viele Umgebungen parallel simuliert. Das Kapitel beschreibt den Aufbau der Umgebung, den Trainingsablauf und die beiden fahrenden Kamera-Agenten und ordnet deren Ergebnisse und Schwächen ein.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Einstieg in Isaac Sim und Isaac Lab}
+\label{sec:3d_einstieg}
+
+Um die Software zunächst zu testen und sich einzuarbeiten, wird als erster Test ein stark vereinfachtes Fahrzeugmodell implementiert. Dieses besteht aus einem Quader und vier Zylindern als Rädern und ist in der Lage, auf einer vereinfachten ersten Teststrecke zu fahren. Damit wird getestet, ob das geplante Vorgehen in Isaac umsetzbar ist. Dafür werden die Funktionsfähigkeit von Gas, Bremse, Lenkung und Kollision bzw.\ die Physik mit der Fahrbahn getestet. Weiterhin wird getestet, ob die Simulation eine realistische Kamera bereitstellt, deren Bild sich als Beobachtung für den Agenten eignet. Nach erfolgreichen Tests werden Auto und Strecke durch realitätsnahe Modelle ersetzt. Alle Versuche und Trainings laufen auf einem einzelnen Rechner (Tabelle~\ref{tab:3d_hardware}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Verwendete Hardware.}
+  \label{tab:3d_hardware}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l X X@{}}
+    \toprule
+    \textbf{Komponente} & \textbf{Ausführung} & \textbf{Rolle im Training} \\
+    \midrule
+    Grafikkarte      & NVIDIA GeForce RTX 5080, \SI{16}{\giga\byte} Grafikspeicher (Architektur \enquote{Blackwell}) & Physik, Rendern der 16 Kamerabilder, Training des Netzes \\
+    Prozessor        & AMD Ryzen 7 9800X3D, 8 Kerne / 16 Threads & Verwaltung des Trainings, Ziehen der Stichproben aus dem Erfahrungsspeicher \\
+    Arbeitsspeicher  & \SI{64}{\giga\byte} DDR5-6000 & Erfahrungsspeicher (bis \SI{26.5}{\giga\byte}) und Simulator; knappste Ressource \\
+    Datenträger      & NVMe-SSD & Projekt, Modelle, Trainingsprotokolle \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Modellierung einer realitätsnahen Umgebung}
+\label{sec:3d_modellierung}
+
+Der Agent soll durch das Training in der Lage sein, das reale Carrera-Hybrid-Auto ohne oder mit geringem Nachtraining zu fahren. Um dies zu erreichen, muss die Umgebung, in der der Agent lernt, der Realität so nah wie möglich nachempfunden sein. Für einen Kamera-Agenten sind dabei vor allem zwei Dinge entscheidend: wie das Kamerabild aussieht und wie das Fahrzeug auf seine Eingaben reagiert. Die folgenden Abschnitte beschreiben, wie Fahrzeug, Fahrverhalten, Strecke, Kamera und Belohnung in Isaac nachgebildet werden.
+
+\subsection{Fahrzeug}
+\label{subsec:3d_fahrzeug}
+
+Das simulierte Fahrzeug besteht in Isaac aus zwei getrennten Teilen: dem sichtbaren Modell, das nur gerendert wird, und einem Kollisionsmodell, das das physikalische Verhalten des Autos beschreibt. Diese Trennung ist üblich, da die Physik nur eine einfache Kollisionsform benötigt; eine detaillierte Karosserieform würde die Berechnung unnötig verlangsamen.
+
+Als sichtbares Modell dient ein frei verfügbares Low-Poly-Modell eines Porsche 911 GT2 RS Weissach \cite{sketchfab_porsche} (Abbildung~\ref{fig:3d_fahrzeugmodell}). Die Fahrzeuge der Carrera-Hybrid-Bahn sind Porsche 991 GT3 R (Abbildung~\ref{fig:3d_fahrzeug_real}). Dabei handelt es sich um unterschiedliche Auto-Modelle, die sich jedoch sehr ähnlich sehen und nur im Detail unterscheiden. Bei einer Kameraauflösung von \num{250} $\times$ \num{150} Pixeln für die gesamte Strecke ist das Fahrzeug im Bild nur etwa \num{9} $\times$ \num{4} Pixel groß, sodass der Unterschied nicht erkennbar ist. Ein möglichst ähnliches Modell ist dennoch sinnvoll: Ändern sich später Kameraposition oder Auflösung, wird das Fahrzeug im Bild größer, und seine Form gewinnt an Bedeutung.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.55\linewidth]{chapters/felix_teil/bilder/fahrzeugmodell_isaac.png}
+  \caption{Sichtbares Fahrzeugmodell (Porsche 911 GT2 RS Weissach) in Isaac Sim.}
+  \label{fig:3d_fahrzeugmodell}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.55\linewidth]{chapters/felix_teil/bilder/fahrzeug_real.jpg}
+  % TODO Quelle: Produktbild (aus carrera_rl/data/carrera_car.jpeg) -- Herkunft klären oder eigenes Foto verwenden
+  \caption{Reales Fahrzeug der Carrera-Hybrid-Bahn (Porsche 991 GT3 R) in der Draufsicht.}
+  \label{fig:3d_fahrzeug_real}
+\end{figure}
+
+Das Kollisionsmodell des Autos ist weiterhin ein Quader mit vier Zylindern. Die Maße des Quaders und der Karosserie wurden jedoch am realen Carrera-Hybrid-Auto gemessen, damit Masse, Schwerpunktlage und Radaufstandspunkte mit der Realität übereinstimmen (Tabelle~\ref{tab:3d_fahrzeugdaten}); die Trägheitsmomente berechnet die Physik-Engine PhysX aus Masse und Form. Masse, Schwerpunkt und Reifenreibung beeinflussen, wie stark das Fahrzeug in Kurven schiebt oder ausbricht. Daher wurden sie so genau wie möglich übernommen.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Gemessene Fahrzeugdaten im Kollisionsmodell.}
+  \label{tab:3d_fahrzeugdaten}
+  \small
+  \begin{tabular}{@{}l l@{}}
+    \toprule
+    \textbf{Größe} & \textbf{Wert} \\
+    \midrule
+    Länge $\times$ Breite $\times$ Höhe der Karosserie & \num{92.5} $\times$ \num{38.4} $\times$ \SI{21.5}{\milli\meter} \\
+    Radstand                          & \SI{49.65}{\milli\meter} \\
+    Spurweite vorne / hinten          & \SI{26.0}{\milli\meter} / \SI{24.5}{\milli\meter} \\
+    Raddurchmesser vorne / hinten     & \SI{13.5}{\milli\meter} / \SI{14.0}{\milli\meter} \\
+    Bodenfreiheit                     & \SI{1.85}{\milli\meter} \\
+    Schwerpunkt                       & \SI{3.75}{\milli\meter} hinter der Fahrzeugmitte, \SI{10.1}{\milli\meter} über dem Boden \\
+    Gesamtmasse                       & \SI{28.8}{\gram} \\
+    Haftreibung Reifen vorne / hinten & \num{0.9} / \num{1.0} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Die Lackierung des sichtbaren Modells (eine Textur der Karosserie) lag während aller hier beschriebenen Trainings nicht vor; der Agent hat das Fahrzeug nur als einfarbige Form gesehen (Abbildung~\ref{fig:3d_lackierung}). Darauf geht der Abschnitt Einschränkungen ein. % TODO Verweis, sobald das Kapitel existiert
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{chapters/felix_teil/bilder/fahrzeug_ohne_mit_lackierung.png}
+  \caption{Fahrzeugmodell ohne Lackierung, wie es der Agent im Training gesehen hat (links), und mit Lackierung (rechts).}
+  \label{fig:3d_lackierung}
+\end{figure}
+
+\subsection{Antrieb und Fahrverhalten}
+\label{subsec:3d_antrieb}
+
+Anfangs verhält sich das simulierte Fahrzeug wie in einem Arcade-Spiel: Es beschleunigt und bremst sehr schlagartig, und die Lenkung ist sehr direkt. Das reale Fahrzeug reagiert dagegen träge, da seine Elektronik das Fahrverhalten eines echten Autos nachbildet. Für den Längsantrieb wird deshalb das gemessene Modell aus Phase~1 unverändert übernommen (Gleichung~\eqref{eq:measured_v2}). Die Lenkung ist auf einen Einschlag von \SI{28.6}{\degree} begrenzt, was annähernd den \SI{30}{\degree} der 2D-Umgebung entspricht.
+
+Das Auto wird über drei Werte gesteuert: für Gas und Bremse im Bereich 0 bis 1 und für die Lenkung von $-1$ bis 1. Gas und Bremse sind dabei den analogen Pedalen eines Controllers nachempfunden, die Lenkung dem Analogstick. Werden beide Pedale gleichzeitig betätigt, wirkt nur das stärkere. Darin weicht die 3D-Umgebung von Phase~1 ab, in der sich Gas und Bremse überlagern (vgl.\ die offenen Punkte in Abschnitt~\ref{sec:lessons}).
+
+\subsection{Strecke und Streckenbegrenzung}
+\label{subsec:3d_strecke}
+
+Als Strecke wird während des Trainings zunächst dieselbe Streckenführung wie in der 2D-Umgebung verwendet. Da sie keine Höhenunterschiede hat, wird das Streckenbild als flache, texturierte Ebene in die Szene eingefügt.
+
+Für das Reinforcement Learning muss jederzeit feststehen, wo sich das Fahrzeug auf der Strecke befindet. Dazu werden per Bildverarbeitung die Begrenzungslinien aus dem Streckenbild extrahiert, geglättet und als Linienzüge gespeichert. Daraus werden vier Bereiche abgeleitet:
+\begin{itemize}
+  \item die gültige Fahrbahn,
+  \item die Randsteine links und rechts,
+  \item der Bereich neben der Strecke,
+  \item die Start- und Ziellinie.
+\end{itemize}
+
+Zur Kontrolle lassen sich die Linien in Isaac als dreidimensionale Wände anzeigen (Abbildung~\ref{fig:3d_grenzen_isaac}); im Training werden sie nicht geladen.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{chapters/felix_teil/bilder/grenzen_kontrollanzeige.jpg}
+  \caption{Begrenzungslinien als Kontrollanzeige in Isaac Sim (grün: Fahrbahnkante, magenta: Außenkante der Randsteine, gelb: Start- und Ziellinie).}
+  \label{fig:3d_grenzen_isaac}
+\end{figure}
+
+Ob das Auto die Strecke verlassen oder eine Runde beendet hat und wie weit es auf der Strecke vorangekommen ist, wird rein geometrisch berechnet. Für die äußeren Aufstandspunkte der Reifen wird geprüft, ob sie noch auf der Fahrbahn liegen. Liegt einer davon außerhalb, gilt das als Crash, und die Episode endet; die Randsteine zählen dabei bereits als außerhalb. Eine Mittellinie dient als Bezug für den Fortschritt entlang der Strecke. Weiterhin ist auf den letzten \SI{0.9}{\meter} vor der Ziellinie eine Startzone definiert. Dort wird das Auto zu Beginn jeder Episode an einer zufälligen Stelle aufgestellt und bis zu \SI{5}{\centi\meter} seitlich zur Mittellinie versetzt (Abbildung~\ref{fig:3d_strecke_grenzen}).
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{chapters/felix_teil/bilder/strecke_grenzen.png}
+  \caption{Trainingsstrecke mit den abgeleiteten Grenzen. Grün: Fahrbahnkante, ab der ein Crash vorliegt; Magenta: Außenkante der Randsteine (im Training keine Grenze); Gelb: Start- und Ziellinie; Orange: Startzone; Blau: Mittellinie als Bezug für Querversatz und Fortschritt.}
+  \label{fig:3d_strecke_grenzen}
+\end{figure}
+
+\subsection{Kamera und Beobachtung}
+\label{subsec:3d_kamera}
+
+Die Umgebung beobachtet der Agent über eine simulierte Kamera, deren Blickwinkel dem eines real umsetzbaren Aufbaus entspricht. Die Kamera hängt fest montiert \SI{3.05}{\meter} über der Mitte der Strecke und erfasst eine Fläche von \num{2.66} $\times$ \SI{1.60}{\meter}, also die gesamte Strecke. Wie in Phase~1 wird das Bild auf \num{250} $\times$ \num{150} Pixel verkleinert und in Graustufen umgerechnet; Agent~1 erhält dabei alle 256 Graustufen, Agent~2 nur vier (Abschnitt~\ref{subsec:agent2_darstellung}). Die Beobachtung besteht analog zu Phase~1 aus den letzten drei Bildern als Stapel (Abschnitt~\ref{subsec:framestack}). Weitere Größen wie die Geschwindigkeit oder frühere Aktionen erhält der Agent nicht.
+
+Ein Pixel deckt damit \SI{1.06}{\centi\meter} der Strecke ab (\SI{93.9}{\px\per\meter}); das Fahrzeug ist im Bild etwa \num{9} $\times$ \num{4} Pixel groß, gegenüber \num{5} $\times$ \num{2} Pixeln in Phase~1. Nach der Wahrnehmungsschwelle aus Phase~1 (Gleichung~\eqref{eq:schwelle}) muss sich das Fahrzeug zwischen zwei Bildern um mindestens einen Pixel bewegen, damit der Agent seine Bewegung im Bildstapel erkennen kann. Bei 30 Bildern je Sekunde liegt diese Schwelle hier bei \SI{0.32}{\meter\per\second}, in Phase~1 bei \SI{0.42}{\meter\per\second}. Die fahrenden Agenten bewegen sich mit \SIrange{0.53}{0.65}{\meter\per\second}, also \num{1.7} bis \num{2.0} Pixel je Bild, und damit deutlich oberhalb der Schwelle.
+
+\subsection{Belohnung und Episodenende}
+\label{subsec:3d_belohnung}
+
+Die Belohnungsfunktion (\texttt{v3\_rundenzeit}) wird unverändert aus Phase~1 übernommen (Gleichung~\eqref{eq:reward}, Tabelle~\ref{tab:reward_gewichte}) und wie dort aus den exakten Zuständen der Simulation berechnet, nicht aus dem Kamerabild. Neu ist nur ein Term für den Fortschritt entlang der Strecke. Tabelle~\ref{tab:3d_belohnung} fasst die Terme zusammen.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Terme der Belohnung je Schritt.}
+  \label{tab:3d_belohnung}
+  \small
+  \begin{tabularx}{\linewidth}{@{}l X l@{}}
+    \toprule
+    \textbf{Term} & \textbf{Wirkung} & \textbf{Gewicht} \\
+    \midrule
+    Geschwindigkeit          & $v^2 \cdot 2 \cdot w_{\text{speed}}$, belohnt schnelles Fahren & $w_{\text{speed}} = 1$ \\
+    Langsam-Gefälle          & lineare Strafe unter \SI{0.6}{\meter\per\second}, voll bei Stillstand & $w_{\text{slow}} = 4$ je Schritt \\
+    Fortschritt (neu in 3D)  & zurückgelegte Strecke entlang der Mittellinie & \num{50} je Meter \\
+    Rundenbonus              & einmalig je vollständiger Runde & $+50$ \\
+    Rundenzeit               & Verbesserung der eigenen Bestzeit, je eingesparten Schritt & \num{5} \\
+    Lenkglättung             & Strafe je Lenkbewegung & \num{0.5} \\
+    Falsche Richtung         & Grundstrafe je Schritt & $-30$ \\
+    Crash                    & ersetzt alle anderen Terme, Episode endet & $-300$ \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Eine Episode endet nach \num{2000} Schritten (\SI{66.67}{\second}), wenn das Auto die Fahrbahn verlässt (Crash) oder wenn die aufsummierte Belohnung unter $-3000$ fällt. Anschließend wird das Auto an einer neuen zufälligen Position in der Startzone aufgestellt.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Vergleich zur 2D-Python-Umgebung}
+\label{sec:3d_vergleich2d}
+
+Dieser Abschnitt fasst zusammen, welche Bestandteile der 2D-Umgebung unverändert in die 3D-Umgebung übernommen werden und welche angepasst werden.
+
+\subsection{Was übernommen wird}
+\label{subsec:3d_uebernommen}
+% TODO (Felix): Abschnitt ist in der Word-Fassung noch leer.
+
+\subsection{Was geändert werden musste}
+\label{subsec:3d_geaendert}
+% TODO (Felix): Abschnitt ist in der Word-Fassung noch leer.
+
+\subsection{Parallele Umgebungen und Erfahrungsspeicher}
+\label{subsec:3d_parallel}
+
+Der größte technische Unterschied zwischen der Python-Umgebung und Isaac Lab ist die Parallelisierung der Umgebungen. In Isaac dauert ein Simulationsschritt mit gerendertem Kamerabild rund \SI{96}{\milli\second}. Jede weitere parallele Umgebung verlängert diesen Schritt jedoch kaum, da Isaac die Physik aller Umgebungen gemeinsam berechnet und alle Kamerabilder in einem Aufruf rendert: Vier Umgebungen benötigen nur \SI{4}{\percent} mehr Zeit als eine, 16 Umgebungen rund \SI{14}{\percent} mehr (\SI{109}{\milli\second}).
+
+\paragraph{Schritt und Übergang.}
+Mit parallelen Umgebungen muss zwischen Schritt und Übergang unterschieden werden. Ein Schritt ist ein Simulationsschritt von $\tfrac{1}{30}$\,\si{\second}; ein Übergang ist ein einzelnes Erfahrungstupel aus Beobachtung, Aktion, Belohnung und Folgebeobachtung einer Umgebung (Abschnitt~\ref{subsec:replay}). Bei 16 Umgebungen entstehen je Schritt 16 Übergänge. Trainingslängen werden im Folgenden in Übergängen angegeben, Episodenlängen in Schritten.
+
+\paragraph{Lernen und Erfahrungsspeicher.}
+Mehr Umgebungen beschleunigen jedoch nur das Sammeln von Erfahrung, nicht das Lernen. Damit das Verhältnis von \num{0.5} Updates je Übergang aus Phase~1 erhalten bleibt, muss die Zahl der Updates mit der Zahl der Umgebungen wachsen, und ein Update dauert mit rund \SI{168}{\milli\second} länger als ein Simulationsschritt. Außerdem teilt Stable-Baselines3 \cite{raffin2021stable} den Erfahrungsspeicher gleichmäßig auf die Umgebungen auf: Bei 64 Umgebungen enthielt er je Umgebung nur die letzten rund \SI{4}{\minute} Fahrt, bei 4 Umgebungen \SI{69}{\minute}.
