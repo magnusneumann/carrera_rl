@@ -3,8 +3,8 @@
   a4paper,             % Papierformat
   headsepline,         % Trennlinie unter der Kopfzeile
   footsepline,         % Trennlinie über der Fußzeile
-  twoside,             % Zweiseitig
-  openright,           % Neue Kapitel auf rechten Seiten
+  oneside,             % Einseitig (digitales Dokument, keine Leerseiten)
+  openany,             % Kapitel beginnen auf der naechsten Seite
   parskip=full,        % Absatzabstand statt Einzug
   numbers=noenddot,    % Kapitelnummern ohne abschließenden Punkt
   listof=totoc         % Alle Verzeichnisse in Inhaltsverzeichniss
@@ -85,10 +85,10 @@
 % ========================
 % ANHANG (Kapitel A, B, C, ...)
 % ========================
-\appendix             % Kapitelnummern werden zu A, B, C, ...
-\onehalfspacing
+%\appendix             % Kapitelnummern werden zu A, B, C, ...
+%\onehalfspacing
 
-\include{chapters/appendix-a}
-\include{chapters/appendix-b}
+%\include{chapters/appendix-a}
+%\include{chapters/appendix-b}
 
 \end{document}
