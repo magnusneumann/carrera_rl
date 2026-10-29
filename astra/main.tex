@@ -58,7 +58,9 @@
 
 \tableofcontents
 \include{acronyms.tex}
-\printnomenclature
+% Weniger Leerraum über der Überschrift, damit die Nomenklatur nicht wegen
+% der letzten Einträge auf eine weitere Seite umbricht.
+{\renewcommand*{\chapterheadstartvskip}{\vspace*{-1.5cm}}\printnomenclature}
 \listoffigures
 \listoftables
 

@@ -1,5 +1,6 @@
 % 00-kurzfassung.tex — Kurzfassung (deutsch) und Abstract (englisch)
-\addchap{Kurzfassung}
+% Weniger Leerraum über der Überschrift, damit die Kurzfassung auf einer Seite bleibt
+{\renewcommand*{\chapterheadstartvskip}{\vspace*{-1.5cm}}\addchap{Kurzfassung}}
 
 Das Training bildbasierter Reinforcement-Learning-Agenten für die Fahrzeugregelung am physikalischen Grenzbereich ist in fotorealistischen 3D-Simulatoren rechenintensiv und sample-ineffizient. Ein Trainingslauf bindet dort Tage an Rechenzeit, bevor überhaupt feststeht, ob die gewählte Beobachtung, die Belohnungsfunktion und der Lernalgorithmus zueinander passen. Die vorliegende Arbeit begegnet diesem Problem mit einer vorgeschalteten Prototyping-Stufe: Für die frei fahrenden Miniaturfahrzeuge des Systems \textit{Carrera Hybrid} (Maßstab etwa 1:43) wurde eine leichtgewichtige, physikalisch kalibrierte 2D-Simulationsumgebung auf Basis von Gymnasium aufgebaut, in der Beobachtungsräume, Belohnungsfunktionen und Lernverfahren isoliert und zeiteffizient untersucht werden können.
 

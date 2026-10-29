@@ -1,43 +1,26 @@
-
-
 ## Doku Arbeit:
+
+
+
+```shell
+cd ~/Desktop/carrera_rl/astra
+../.vscode/texdocker.sh make
+```
 
 Kurzfassung könnte weiter oben angeordnet sein, dann würde der Abschnitt nicht auf die nächste  Seite umbrechen
 
 Nomenklatur könnte auch weniger platz über der überschrift vertragen, dann würden die letzten beiden einträge der nomenklatur nicht auf eine neue seite umbrechen
 
-Seite 8 formel 2.3 hier wiederspricht sich etwas. laut dem satz vor der formel muss st alles enthalten was für die zukunft wichtig ist - unter der formel wird aber gesagt die aktuelle informations darf nichts über die folgeposition verraten.
+Seite 7 formel 2.3 hier wiederspricht sich etwas. laut dem satz vor der formel muss st alles enthalten was für die zukunft wichtig ist - unter der formel wird aber gesagt die aktuelle informations darf nichts über die folgeposition verraten.
 das ist ein widerspruch.
 Die Formel zum replay buffer erhält in der pdf version das wort fertig - das wundert mich etwas.
 
-auf manchen seiten fehlen die Seitenzahlen - zb Seite 17 ist aber glaube ich bei latex so gewollt - kann dann auch so bleiben
+Fallen und Fehler sowie Erkenntnisse Gut und Schlecht sind arbeitsüberschriften und müssen noch abgeändert werden - dokumentweit.
 
-Das habe ich anders erinnerung: Der genauere Blick relativiert jedoch,wasdabei übertragen wird. Vom vortrainiertenCNN
-werden nur die drei Faltungsschichten kopiert; die beiden Linear-Schichten – also genau der
-Teil, der aus Bildmerkmalen Gas, Bremse und Lenkung macht – werden verworfen. Übertragen
-wird damit Sehfähigkeit, nicht Fahrwissen. Von den elf Runden des Lidar-Experten kommt beim
-Vision-Agenten nichts an.
-Ich meine ich kenne Tensorboard grafiken die zeigen dass der reward zu beginn des trainings sehr hoch ist - also konnte das vortrainierte netz kurz fahren - war aber overfittet - dewegen hat es durch das lenen aus unbekannten aktionen alles verlernt.
+in @03-hauptteil.tex ab:
+`\section{Mehrstufiger Trainingsansatz}`
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+die Rechtschreibung und Sprache korrigieren und Inhaltliche Fehler zurückmelden.
 
 # Was soll die Doku vermitteln?
 

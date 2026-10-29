@@ -554,7 +554,34 @@ Beiläufig deckte diese Umstellung ein weit gravierenderes Problem auf. Beide Re
 \end{center}
 Derselbe Agent fuhr im Trainings-Renderpfad \num{256} Frames und \SI{6.9}{\meter}, im anderen \SI{0.00}{\meter}. Erklärbar ist das über die Größenordnung: Die acht abweichenden Pixel entsprechen ungefähr dem \emph{gesamten Fahrzeug} in der Beobachtung -- aus Sicht des Netzes war das Auto schlicht weg.
 
-\section{Erkenntnisse (Gut und Schlecht)}
+\section{Mehrstufiger Trainingsansatz}
+\label{subsec:mehrstufiges_training}
+Den Ergebnissen vorgreifend sei hier die neue Lernstrategie beschrieben, die entwickelt wurde, um den Trainingserfolg zu erhöhen.
+
+\paragraph{Motivation für den Wechsel der Trainingsstrategie.}
+\begin{itemize}
+  \item Das Training eines Lidar-Agenten läuft verlässlich und sehr gut.
+  \item Mit Transferlernen wurden in anderen KI-Projekten positive Erfahrungen gemacht.
+  \item Es besteht Interesse an Demonstrationslernen und an der Frage, ob vortrainierte Gewichte den Lernerfolg gegenüber zufällig initialisierten Gewichten erhöhen.
+  \item Der Vision-Agent soll mehr Weitsicht erhalten und etwa zwei Kurven vorausdenken.
+  \item Die Strategie folgt dem Prinzip einer Fahrschule: Der Lidar-Agent fungiert als Lehrer und bringt dem Vision-Agenten das Fahren bei. Anschließend optimiert der Vision-Agent das Rennstreckenfahren selbstständig und steigert seine Belohnung.
+\end{itemize}
+
+\paragraph{Neue Trainingspipeline.}
+\begin{enumerate}
+  \item Schnelles Training eines Lidar-Agenten mit der bestehenden Belohnungsfunktion.
+  \item Erstellen eines Datensatzes, der die Zustände visuell mit den \enquote{korrekten} Ausgaben des Agenten verknüpft. Dafür fährt der Lidar-Agent mit aufgeprägtem Rauschen, während Bilder zusammen mit den Aktionen aufgezeichnet werden, die der Agent im jeweiligen Frame ausgeführt hat.
+  \item Vortrainieren des Vision-Agenten: Die aufgenommenen Bilder liegen am Eingang des Vision-Agenten an, die Aktionen des Lidar-Agenten am Ausgang. Der Vision-Agent lernt also, die Aktionen des Lidar-Agenten zu imitieren. Durch dieses Training soll das \ac{CNN} die richtigen Merkmale extrahieren, damit der Vision-Agent in den gezeigten Situationen die nötigen Aktionen lernt, um auf der Strecke zu bleiben.
+  \item Der Vision-Agent beginnt mit dem Online-Training. In den ersten Versuchen wurde dafür das gesamte Netz übernommen und ohne eingefrorenen Kopf weitertrainiert; später wurde nur noch das \ac{CNN} übernommen (Abschnitt~\ref{subsec:vortraining}). Die vortrainierten Gewichte sollen den Einstieg erleichtern: Der Agent soll weniger Lernschritte benötigen, um selbst optimales Fahren zu lernen und den Lidar-Agenten zu übertreffen.
+\end{enumerate}
+
+\paragraph{Einordnung der Wirkung.}
+\emph{Weniger Lernschritte} bedeutet hier zunächst Folgendes: Vision-Agenten mit zufälliger Initialisierung lieferten auch nach Millionen Schritten überhaupt kein Ergebnis, während mit dieser Pipeline in einigen Fällen nach Millionen Schritten ein Ergebnis entstand. Das ist weder verlässlich noch gut, aber besser als zuvor, und es ist ein erster, \emph{nicht quantifizierter} Beleg für einen Vorteil des Vortrainings. Quantifiziert ist er deshalb nicht, weil Läufe mit und ohne Vortraining nicht unter gleichem Schrittbudget und mit mehreren Seeds verglichen wurden und Fehlschläge nicht als Erfolgsquote erfasst sind. Offen ist außerdem, \emph{wodurch} der Effekt entsteht: Die Sondierung der übertragenen Merkmale misst sie nicht besser als zufällige Anfangsgewichte, und für \ac{SAC} fehlt weiterhin ein Lauf ohne Backbone (Abschnitt~\ref{subsec:vortraining}).
+
+\paragraph{Generalisierung und Overfitting im Gegensatz.}
+Das Ziel eines übermenschlichen Fahrers auf einer bestimmten Strecke schließt Overfitting nicht aus. Das Training des Vision-Agenten würde jedoch vermutlich besser konvergieren, wenn Lehrer und Datensatz stärker generalisierten. Dass nach dem Vortraining katastrophales Vergessen (\emph{Catastrophic Forgetting}) auftritt, kann ein Hinweis auf einen zu eintönigen Lehrerdatensatz sein; als Ursachen kommen ebenso ein zufällig initialisierter Critic und der Wechsel der Datenverteilung beim Übergang in das Online-Training in Frage.
+
+\section{Gewonnene Erkenntnisse und Beobachtungen}
 \label{subsec:erkenntnisse_phase1}
 
 \paragraph{Oszillierendes Stellverhalten.}
@@ -587,7 +614,7 @@ Die einschlägige Literatur und die vorbereitende Recherche legten nahe, dass ei
 \paragraph{Zielsetzung bleibt der globale Ansatz.}
 Ziel des Projekts ist ein Agent, der menschliche Rundenzeiten schlägt und dabei eine mit einem menschlichen Fahrer vergleichbare Übersicht besitzt, also die gesamte Bahn sieht. Aus dieser Zielsetzung heraus wurde der global funktionierende Ansatz weiter verfeinert, obwohl der Ego-Crop lokal höhere Auflösung böte.
 
-\section{Fallen und Fehler}
+\section{Fehlerquellen und Fallstricke}
 \label{subsec:fallen_phase1}
 
 \paragraph{Die Belohnungsfunktion ist hochgradig sensibel.}

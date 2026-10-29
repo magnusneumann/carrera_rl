@@ -31,7 +31,7 @@ Der namensgebende Kern ist die \emph{Markov-Eigenschaft}: Der Zustand $s_t$ muss
   P(s_{t+1} \mid s_t, a_t, s_{t-1}, a_{t-1}, \dots) = P(s_{t+1} \mid s_t, a_t).
   \label{eq:markov}
 \end{equation}
-Die Vergangenheit darf also keine zusätzliche Information über den Folgezustand tragen. Für das vorliegende Projekt ist das eine scharfe Anforderung: Ein Zustand, der die Fahrzeugposition enthält, aber nicht die Geschwindigkeit, verletzt sie, denn aus derselben Position folgen je nach Tempo völlig verschiedene Folgepositionen.
+Ist $s_t$ bekannt, liefert die Vergangenheit also keine zusätzliche Information über den Folgezustand: Alles Relevante steckt bereits in $s_t$. Für das vorliegende Projekt ist das eine scharfe Anforderung: Ein Zustand, der die Fahrzeugposition enthält, aber nicht die Geschwindigkeit, verletzt sie, denn aus derselben Position folgen je nach Tempo völlig verschiedene Folgepositionen.
 
 Der Diskontfaktor $\gamma$ steuert, wie weit der Agent in die Zukunft plant. Der wirksame Planungshorizont beträgt näherungsweise
 \begin{equation}
@@ -166,7 +166,7 @@ mit dem Lenkwinkel $\delta$ und dem Radstand $L$. Wer $v$ und $\delta$ exakt ken
 \label{subsec:replay}
 
 \paragraph{Replay-Buffer.}
-Ein \emph{Replay-Buffer} ist ein Ringspeicher vergangener Übergänge der Form $(s,\,a,\,r,\,s',\,\text{fertig})$. Er ist die technische Voraussetzung dafür, dass Off-Policy-Verfahren ihren Vorteil ausspielen, und erfüllt drei Aufgaben:
+Ein \emph{Replay-Buffer} ist ein Ringspeicher vergangener Übergänge der Form $(s,\,a,\,r,\,s',\,d)$, wobei $d \in \{0,1\}$ das Episodenende markiert (\emph{done}-Flag). Er ist die technische Voraussetzung dafür, dass Off-Policy-Verfahren ihren Vorteil ausspielen, und erfüllt drei Aufgaben:
 \begin{enumerate}
   \item \textbf{Wiederverwendung.} Jeder Übergang kann hunderte Male in ein Gradientenupdate eingehen, statt nach einem Update verworfen zu werden.
   \item \textbf{Entkopplung.} Aufeinanderfolgende Einzelbilder sind nahezu identisch. Zufälliges Ziehen aus dem Puffer bricht diese zeitliche Korrelation auf; andernfalls bestünde ein Minibatch aus nahezu derselben Situation.
