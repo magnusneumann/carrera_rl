@@ -24,41 +24,43 @@ Bemerkenswert ist rückblickend, wie viele der gewonnenen Erkenntnisse \emph{neg
 \section{Fazit zu Phase 2}
 \label{sec:fazit_phase2}
 
-Phase~2 ist zum Redaktionsschluss in Bearbeitung. Ein belastbares Fazit über die 3D-Umsetzung setzt Messungen in dieser Umgebung voraus und wird von dem für sie verantwortlichen Projektmitglied nachgetragen. Die Grundlage dafür ist vollständig vorbereitet: Die zu übernehmenden Bestandteile, die neu zu bauenden Bestandteile, die Reihenfolge der Inbetriebnahme und die Abnahmekriterien sind in Abschnitt~\ref{sec:phase2} und Tabelle~\ref{tab:abnahmekriterien} festgehalten.
+Phase~2 hat die Machbarkeit gezeigt: Ein Agent kann in einer physikalisch simulierten, realitätsnah gerenderten Umgebung lernen, ein Fahrzeug allein anhand eines Kamerabildes zu steuern, und das auch bei wechselndem Aussehen der Strecke. Die Pipeline aus Phase~1 ließ sich dafür weitgehend unverändert übernehmen: Lehrer, Datenaufzeichnung, Vortraining und \ac{SAC}-Training mit denselben Hyperparametern, derselben Belohnungsfunktion und demselben gemessenen Fahrzeugmodell (Tabelle~\ref{tab:3d_vergleich2d}).
 
-Die aus Phase~1 abgeleitete Prognose lautet: Die Aufgabe ist mit privilegierter Beobachtung lösbar, die Wahrnehmungsschwelle tritt in identischer Form erneut auf und ist vor dem ersten Training zu prüfen, und die Sprödigkeit der Policy gegenüber minimalen Bildunterschieden wird durch Beleuchtung, Schattenwurf und Renderrauschen eher zunehmen. An diesen drei Punkten wird sich messen lassen, ob die entwickelte Pipeline überträgt.
+\paragraph{Was entscheidend war.}
+Drei Punkte haben über Erfolg und Misserfolg entschieden:
+
+\begin{enumerate}
+  \item \textbf{Die Wahrnehmungsschwelle vorab prüfen.} Für die Kamera in Isaac liegt sie bei \SI{0.32}{\meter\per\second} und damit unter dem Tempo, mit dem die Agenten fahren (Abschnitt~\ref{subsec:3d_kamera}). Das in Phase~1 abgeleitete Kriterium hat sich damit bewährt.
+  \item \textbf{Den Encoder zu Beginn einfrieren.} Ohne diesen Schutz überschreibt das Reinforcement Learning das vortrainierte Sehen, und der Agent wird blind (Abschnitt~\ref{sec:einfrieren}). Das hatte Phase~1 nicht vorhergesagt.
+  \item \textbf{Variation im Training.} Ein Agent, der nur eine Darstellung kennt, lernt sie auswendig. Erst zwölf Darstellungen mit Bildstörungen ergeben einen Agenten, der auf allen fährt.
+\end{enumerate}
+
+\paragraph{Warum der Agent nicht verallgemeinert.}
+Dass Agent~2 keine andere Streckenführung fährt, liegt an der Datengrundlage. Er hat während des gesamten Trainings nur eine einzige Strecke gesehen, immer in derselben Lage im Kamerabild. Gelernt hat er deshalb nicht das Fahren an sich, sondern diese Strecke in dieser Ansicht. Übertragbar ist das Sehen, also die Fähigkeit, die Lage des Fahrzeugs im Bild abzulesen, nicht aber die Fahrweise. Für eine fest montierte Kamera über einer festen Strecke ist das kein Nachteil; ein Agent für beliebige Strecken entsteht so jedoch nicht.
+
+\paragraph{Einschränkungen.}
+Fast alle Vergleiche beruhen auf einem einzigen Trainingslauf je Bedingung; belastbar sind deshalb Unterschiede, die sich über ganze Trainingsverläufe zeigen, nicht knappe Zahlenunterschiede. Die Umgebung bildet die Realität zudem nur teilweise ab: Das Fahrzeug war im Training unlackiert, die Kamera unbewegt, die Beleuchtung konstant, und nur die Längsdynamik beruht auf Messungen. Schließlich stammen alle Ergebnisse aus der Simulation. Es bleibt offen, ob der Agent in der Lage ist, mit einem realen Kamerabild zu fahren.
 
 \section{Ausblick: Phase 3 -- Sim-to-Real-Transfer}
 \label{sec:ausblick}
 
-Das mögliche Anschlussprojekt hat ein klar benennbares Ziel: einen in Simulation trainierten Agenten auf die reale Carrera-Hybrid-Bahn zu bringen. Die dabei zu überbrückende Lücke zwischen Simulation und Wirklichkeit -- der \emph{Sim-to-Real-Gap} -- ist in diesem Projekt bereits messbar geworden, wenn auch an einer unerwarteten Stelle.
+Der nächste Entwicklungsschritt ist, den in der Simulation trainierten Agenten auf die reale Carrera-Hybrid-Bahn zu übertragen. Das Training selbst bleibt dabei in der Simulation, denn die \num{14.5}~Mio.\ Übergänge von Agent~2 entsprächen am realen Fahrzeug rund \SI{134}{\hour} reiner Fahrzeit, in der es anfangs nach jeder Sekunde von Hand zurückgesetzt werden müsste. Damit der Agent dort fährt, muss er zum einen lernen zu verallgemeinern, und zum anderen muss die Simulation der Realität weiter angeglichen werden.
 
-\paragraph{Der Befund, der den Ausblick bestimmt.}
-Zwischen den beiden verwendeten Renderpfaden unterscheiden sich \SI{0.05}{\percent} der Pixel -- nichts weiter als die Kantenglättung des Fahrzeug-Sprites. Das genügte, um die Ausgabe der Policy vollständig umzuwerfen: Die Lenkvorgabe kippte von $+0{,}30$ auf $-0{,}80$, und derselbe Agent, der im einen Pfad \SI{6.9}{\meter} fuhr, bewegte sich im anderen keinen Zentimeter. Erklärbar ist das über die Größenordnung -- die acht abweichenden Pixel entsprechen ungefähr dem gesamten Fahrzeug in der Beobachtung.
+\paragraph{Verallgemeinern.}
+Damit der Agent das Fahren statt einer Strecke lernt, muss er im Training viele verschiedene Streckenführungen sehen \cite{cobbe2019quantifying}. Isaac Lab kann dazu in jeder parallelen Umgebung eine andere Strecke laden, die der vorhandene Streckengenerator erzeugt. Carrera-Bahnen werden ständig umgebaut. Ein Agent, der nur eine Streckenführung kennt, müsste nach jedem Umbau neu trainiert werden. Das ist ein konkreter Grund, warum Verallgemeinern für die Realität zählt.
 
-Für den Realtransfer ist dieser Befund vernichtend, und genau deshalb ist er wertvoll. Wenn bereits die Antialiasing-Kante des eigenen Renderers ausreicht, um die Policy lahmzulegen, dann hat eine reale Kamera mit Beleuchtungsschwankungen, Schattenwurf, Sensorrauschen, Bewegungsunschärfe und Übertragungslatenz keine Chance. Die Sprödigkeit ist damit kein Randproblem des Transfers, sondern seine zentrale Herausforderung.
-
-\paragraph{Die Gegenmaßnahme: einen fahrenden Agenten mit Störungen bombardieren.}
-Der vorgezeichnete Weg besteht darin, einen bereits fahrfähigen Agenten \emph{nachträglich} robust zu machen, statt Robustheit von Anfang an zu erzwingen. Konkret bedeutet das, die Beobachtung während des Weitertrainierens systematisch zu stören:
+\paragraph{Die Simulation an die Realität angleichen.}
+Wie empfindlich eine Policy auf kleine Bildunterschiede reagiert, hat bereits Phase~1 gezeigt, in der \SI{0.05}{\percent} abweichende Pixel genügten, um sie umzuwerfen; Agent~1 bestätigt das in 3D. Vor einem Einsatz am realen Fahrzeug muss die Simulation deshalb in folgenden Punkten nachgezogen werden:
 
 \begin{itemize}
-  \item \textbf{Beobachtungs-Augmentierung:} additives Rauschen, Verschiebungen um wenige Pixel, zufällige Zuschnitte, Helligkeits- und Kontraständerungen. Verfahren wie \emph{DrQ} und \emph{RAD} sind dafür etabliert und in diesem Projekt bislang \emph{vollständig ungenutzt}.
-  \item \textbf{Domain Randomization:} Randomisierung von Reibwerten, Beleuchtung, Kameraposition und -kalibrierung, Fahrzeugmasse und Schwerpunktlage über die Trainingsläufe hinweg.
-  \item \textbf{Latenz und Aktorträgheit:} Modellierung der Funkübertragungsverzögerung und der realen Servostellzeit, die im 2D-Modell nur als Begrenzung der Lenkänderungsrate näherungsweise enthalten ist.
+  \item \textbf{Kamera und Strecke:} Position, Brennweite und Ausschnitt der simulierten Kamera an die reale anpassen und die reale Streckenführung nachbauen, da der Agent die Strecke in ihrer Lage im Bild lernt.
+  \item \textbf{Randomisierung:} Lackierung, Bewegung der Kamera, Licht und Schatten sowie Bildstörungen bei jedem Update (DrQ, RAD) aufnehmen, dazu physikalische Größen wie Reibung, Masse und Schwerpunktlage.
+  \item \textbf{Fahrverhalten:} das Kurvenverhalten und die Reaktion des Fahrtreglers auf gleichzeitiges Gas und Bremsen am realen Fahrzeug messen und die Pedalabbildung so ändern, dass der ganze Ausgabebereich des Netzes genutzt wird.
+  \item \textbf{Latenz:} Übertragungsverzögerung und Stellzeit der Lenkung nachbilden. Der Spielraum ist klein: In der Kurve, an der Agent~2 auf schwachen Darstellungen scheitert, wächst sein Richtungsfehler innerhalb von \SI{0.3}{\second} auf über \SI{30}{\degree}.
+  \item \textbf{Rettung aus Fehllagen:} Da der zustandsbasierte Lehrer in jedem Zustand abfragbar ist, lassen sich Lehrerdaten mit Rauschen aufzeichnen oder DAgger \cite{ross2011reduction} einsetzen, damit der Agent aus gestörten Lagen zurückfindet \cite{amini2020learning}.
 \end{itemize}
 
-Die Steigerungsstufe dieses Gedankens ist der Übergang von der Störung zur \emph{Rettung}: Ein Agent soll nicht nur kleine Abweichungen verkraften, sondern aus grob gestörten Zuständen zurückfinden. Genau das ist die Aussage von VISTA \cite{amini2020learning}, und genau dafür existiert in diesem Projekt bereits die Grundlage -- der Lidar-Experte ist in \emph{jedem} Zustand abfragbar und kann daher zu jeder gestörten Lage die richtige Rettungsaktion liefern. Damit ist auch der Weg zu \emph{DAgger} offen, dem theoretisch sauberen Gegenmittel gegen den Covariate Shift, das in Phase~1 aus Zeitgründen nicht mehr erprobt wurde.
-
-\paragraph{Weitere Anknüpfungspunkte.}
-Über den Transfer hinaus bleiben aus Phase~1 mehrere Fäden offen, die sich mit vergleichsweise geringem Aufwand aufnehmen lassen:
-
-\begin{itemize}
-  \item Ein \ac{SAC}-Lauf \emph{ohne} Backbone-Transplantation, um endlich zu belegen oder zu widerlegen, dass das Vortraining seinen Aufwand wert ist.
-  \item Die Vorbefüllung des Replay-Buffers mit vollständigen Experten-Übergängen. Da \ac{SAC} off-policy lernt, kann es direkt aus fremden Übergängen lernen -- ein Weg, der im Gegensatz zur reinen Backbone-Übertragung auch Fahrwissen transportieren würde.
-  \item Die Aufnahme der Geschwindigkeit als Skalarwert in die Beobachtung. Die Ablationsstudie legt nahe, dass dies die wirksamste Einzelmaßnahme wäre; sie verändert allerdings die Aufgabenstellung und wäre gegen das Ziel abzuwägen, dem Agenten dieselbe Informationslage zu geben wie einem menschlichen Fahrer.
-  \item Der offene Vergleichslauf \ac{PPO} mit niedriger Lernrate und Backbone, vorbereitet auf dem Branch \texttt{ppo-vergleich}.
-  \item Die Klärung, wie ein realer Fahrtregler auf gleichzeitiges Gas und Bremsen reagiert. Der Agent nutzt beides in über der Hälfte der Frames; das Modell nimmt Superposition an, und das ist eine Annahme, keine Messung. Zehn Sekunden Videoaufnahme mit beiden Triggern würden genügen.
-\end{itemize}
+Ein erster Test ist dabei ohne Fahrzeugsteuerung möglich: Aufnahmen der realen Strecke werden durch den Encoder von Agent~2 geschickt, und es wird geprüft, ob er Querversatz und Richtungsfehler richtig abliest. Gelingt das, ist der schwierigste Teil der Übertragung, das Sehen, gelöst.
 
 \paragraph{Abschließende Einordnung.}
-Das übergeordnete Ziel -- ein Agent, der ein reales Carrera-Hybrid-Fahrzeug allein anhand eines Deckenkamerabildes schneller über die Bahn steuert als ein Mensch -- bleibt bestehen und ist nicht erreicht. Was in Phase~1 entstanden ist, ist die Vorarbeit dafür: eine kalibrierte Umgebung, eine geprüfte Trainingspipeline, ein Satz reproduzierter Fehlerquellen und vor allem eine Reihe von Kriterien, die vor dem Training entscheiden, ob ein Aufbau überhaupt tragfähig ist. Dass ein erheblicher Teil dieser Erkenntnisse aus Fehlschlägen stammt, mindert ihren Wert nicht -- es ist die übliche Form, in der sie anfallen.
+Die Arbeit zeigt, dass ein Agent lernen kann, ein Carrera-Fahrzeug allein anhand eines Kamerabildes über die Bahn zu steuern, in der Simulation auch unter realistischer Physik und bei wechselndem Aussehen der Strecke. Ob er auf der realen Bahn fährt, hängt damit nicht mehr davon ab, ob er fahren lernen kann, sondern davon, wie allgemein er fahren lernt: Hat er im Training genug Vielfalt gesehen, ist die Wirklichkeit für ihn nur eine weitere Variante.

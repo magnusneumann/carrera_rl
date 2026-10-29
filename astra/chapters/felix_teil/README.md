@@ -10,8 +10,9 @@ Ist in `main.tex` eingetragen, hinter `\include{chapters/03-hauptteil}`:
 
 ```latex
 \include{chapters/felix_teil/05-umsetzung-3d}
-\include{chapters/felix_teil/06-trainingsablauf}
 ```
+
+`05-umsetzung-3d.tex` bindet `06-trainingsablauf.tex` am Ende per `\input` selbst ein.
 
 und bei den Literaturquellen:
 
@@ -19,16 +20,22 @@ und bei den Literaturquellen:
 \addbibresource{chapters/felix_teil/felix_literatur.bib}
 ```
 
-Im Gesamtdokument werden die beiden Kapitel zu Kapitel 4 und 5 (Word: 5 und 6); Magnus' Ergebnisse
-und Fazit rücken auf 6 und 7. Alle Nummern vergibt LaTeX, im Text stehen nur `\ref{...}`.
+Im Gesamtdokument bilden beide Dateien zusammen Kapitel 4 „Phase 2: 3D-Simulation in Isaac Sim“
+(analog zu Magnus' Kapitel „Phase 1: 2D-Prototyping“), mit den Abschnitten 4.1 „Umsetzung in 3D“
+(Word: Kapitel 5) und 4.2 „Trainingsablauf in Isaac“ (Word: Kapitel 6). Alle Gliederungsebenen
+darunter liegen eine Stufe tiefer als in Word. Alle Nummern vergibt LaTeX, im Text stehen nur `\ref{...}`.
 
 ## Inhalt
 
 | Datei | Inhalt |
 |---|---|
-| `05-umsetzung-3d.tex` | Kapitel „Umsetzung in 3D“ (Word: Kapitel 5) |
-| `06-trainingsablauf.tex` | Kapitel „Trainingsablauf in Isaac“ (Word: Kapitel 6) |
-| `felix_literatur.bib` | Tobin 2017, Sketchfab-Modell (CC BY 4.0), Isaac Lab |
+| `05-umsetzung-3d.tex` | Kapitelkopf „Phase 2“ und Abschnitt „Umsetzung in 3D“ (Word: Kapitel 5) |
+| `06-trainingsablauf.tex` | Abschnitt „Trainingsablauf in Isaac“ (Word: Kapitel 6) |
+| `felix_literatur.bib` | Tobin 2017, Cobbe 2019, Sketchfab-Modell (CC BY 4.0), Isaac Lab |
+
+Außerhalb dieses Ordners stehen in Magnus' Dateien drei Abschnitte von Felix (Word: „Phase 2 Ergebnisse
+Fazit Ausblick Felix V1.docx“): „Ergebnisse von Phase 2“ am Ende von `04-ergebnisse.tex` sowie
+„Fazit zu Phase 2“ und „Ausblick: Phase 3“ in `05-fazit.tex` (ersetzen Magnus' Platzhalter und Ausblick).
 | `bilder/` | alle Abbildungen in Originalauflösung |
 
 ## Abbildungen und Tabellen

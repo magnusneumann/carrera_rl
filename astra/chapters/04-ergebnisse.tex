@@ -158,3 +158,17 @@ Das ist das eigentliche Ergebnis dieser Arbeit: nicht ein Agent, der schnell fä
     \bottomrule
   \end{tabularx}
 \end{table}
+
+\section{Ergebnisse von Phase 2}
+\label{sec:ergebnisse_phase2}
+
+Durch Phase~2 soll die Frage beantwortet werden, ob sich die in der 2D-Umgebung entwickelte Pipeline auf eine physikalisch simulierte, realitätsnah gerenderte 3D-Umgebung übertragen lässt. Das ist gelungen: In Isaac Sim sind zwei Kamera-Agenten entstanden, die allein anhand des Kamerabildes zuverlässig Runden fahren (Tabelle~\ref{tab:agentenvergleich}).
+
+\paragraph{Was die Agenten können.}
+Agent~1 wurde auf einer einzigen Darstellung der Strecke trainiert. Dort fährt er \num{6.4} Runden je Episode mit einer besten Runde von \SI{8.65}{\second} und ist damit nur rund \SI{4}{\percent} langsamer als der Lehrer, der den Zustand der Simulation exakt kennt. Agent~2 wurde auf zwölf Darstellungen mit Bildstörungen trainiert und fährt auf allen zwölf Runden, im Mittel \num{4.5} je Episode. Auf den drei besten Darstellungen fährt er bei \SI{200}{\second} langen Episoden \num{19} bis \num{19.7} Runden ohne einen einzigen Crash. Außerdem ist der Agent in der Lage, auf einer Darstellung, die er im Training nie gesehen hat, zu fahren. Er ist damit langsamer und weniger sicher als Agent~1, dafür aber robust gegen ein verändertes Aussehen der Strecke, an dem Agent~1 vollständig scheitert (Abschnitt~\ref{subsec:agent2_ergebnis}).
+
+\paragraph{Wo die Grenzen liegen.}
+Eine andere Streckenführung fährt keiner der beiden Agenten. Agent~2 fährt ohne Nachtraining auf keiner der vier neuen Strecken eine Runde, auch nicht auf der um \SI{180}{\degree} gedrehten Originalstrecke in den bekannten Darstellungen (Tabelle~\ref{tab:ohne_nachtraining}). Wird er auf einer neuen Strecke weitertrainiert, fährt er seine erste Runde nur \SIrange{3}{11}{\percent} früher als ein neu gestarteter Agent mit demselben vortrainierten Encoder (Tabelle~\ref{tab:transfer}).
+
+\paragraph{Aufwand.}
+Das Training von Agent~2 umfasste \num{14.5}~Mio.\ Übergänge in rund \SI{92}{\hour} auf einem einzelnen Rechner (Tabelle~\ref{tab:3d_hardware}). Hinzu kamen etwa \SI{125}{\hour} Rechenzeit in frühen Läufen, die wegen unbemerkter Fehler nichts lernen konnten (Abschnitt~\ref{sec:probleme_agent1}).

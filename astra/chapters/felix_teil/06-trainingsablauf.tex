@@ -1,10 +1,10 @@
 % 06-trainingsablauf.tex
-\chapter{Trainingsablauf in Isaac}
-\label{chap:trainingsablauf}
+\section{Trainingsablauf in Isaac}
+\label{sec:trainingsablauf}
 
 Wie in Phase~1 gezeigt, ist es von Vorteil, das \ac{RL}-Training nicht ohne Vorbereitung zu starten. Ein Kamera-Agent, der von Null an lernt, muss zwei Dinge gleichzeitig herausfinden: was die Pixel bedeuten und wie man fährt. Das einzige Signal dafür ist die Belohnung. Um das zu erleichtern, wird der Bildteil des Netzes vorab überwacht trainiert. Anschließend folgen die beiden fahrenden Kamera-Agenten, die im Verlauf der Arbeit entstanden sind, im Folgenden Agent~1 und Agent~2. Beide durchlaufen dieselben vier Stufen, unterscheiden sich aber im Ziel des Vortrainings und in den Darstellungen der Strecke: Agent~1 lernt auf einer einzigen Darstellung, Agent~2 auf zwölf.
 
-\section{Die Trainingspipeline in 3D}
+\subsection{Die Trainingspipeline in 3D}
 \label{sec:pipeline3d}
 
 Entsprechend der Python-Umgebung wird auch hier eine mehrstufige Trainingspipeline verwendet, um den Ablauf des \ac{RL}-Trainings effizienter zu gestalten. Diese Pipeline besteht aus vier separaten Stufen, wie in Abbildung~\ref{fig:pipeline_stufen} zu sehen.
@@ -36,7 +36,7 @@ Gerade am Anfang des Trainings sind die Gradienten des Reinforcement Learning st
 
 Der Encoder wird deshalb zu Beginn eingefroren: Seine Gewichte bleiben für eine festgelegte Zahl von Übergängen unverändert, und nur der Kopf lernt. Danach wird der Encoder aufgetaut und lernt mit. Die Gradienten verfeinern das Sehen nun, statt es zu zerstören. Bei Agent~1 waren die Faltungsschichten bis \num{0.3}~Mio.\ Übergänge eingefroren, bei Agent~2 der gesamte Encoder bis 2~Mio. Wie entscheidend dieser Schritt ist, zeigt ein Gegenversuch (Abschnitt~\ref{sec:einfrieren}).
 
-\section{Training des Kamera-Agenten}
+\subsection{Training des Kamera-Agenten}
 \label{sec:kamera_training}
 
 Der Kamera-Agent wird, wie in Phase~1 erarbeitet, mit \ac{SAC} trainiert (Abschnitte~\ref{subsec:ppo_sac} und~\ref{subsec:ppo_sac_vergleich}); auch die Netzarchitektur, das NatureCNN, stammt aus Phase~1. Actor und Critic besitzen jeweils einen eigenen Encoder, dahinter je einen Kopf, der die drei Aktionen bzw.\ deren Bewertung berechnet.
@@ -48,14 +48,14 @@ Als Eingabe erhält der Agent ausschließlich den Bildstapel. Belohnung, früher
 \paragraph{Bewertung.}
 Die Agenten werden nach dem Training deterministisch bewertet, also ohne Zufallsanteil der Aktionen und ohne Bildstörungen, mit zufälligen Startpositionen und getrennt je Darstellung der Strecke. Dabei werden Runden je Episode, mittleres Tempo, beste Rundenzeit und der Anteil der Episoden, die mit einem Crash enden, gemessen. Die Werte aus dem Training eignen sich dafür nicht, weil die Aktionen dort zufällig gestreut und über alle Darstellungen gemittelt sind. Da gute Agenten in \SI{66.67}{\second} das Zeitlimit von etwa sechs Runden erreichen, wurden die fertigen Modelle zusätzlich mit \SI{200}{\second} langen Episoden gemessen.
 
-\section{Probleme auf dem Weg zum ersten Agenten}
+\subsection{Probleme auf dem Weg zum ersten Agenten}
 \label{sec:probleme_agent1}
 
 Bis zum ersten fahrenden Kamera-Agenten vergingen etwa \SI{125}{\hour} Rechenzeit in Läufen, die nichts lernen konnten. Die wesentlichen Fehler traten ohne Absturz oder Warnung auf. Mehrere Fehler betrafen die Vortrainingskette: invertierte Lehrerbilder, Lehreraktionen außerhalb des gültigen Wertebereichs und das Speichern der letzten statt der besten Trainingsepoche.
 
 Auch mit korrektem Bild lernte der Agent zunächst nicht zu fahren. Zum einen bestand eine Belohnungsfalle: Ohne den Fortschrittsterm brachte Geradeausfahren erst ab \SI{0.52}{\meter\per\second} Pluspunkte, sodass ein schnelles Verlassen der Fahrbahn für den Agenten günstiger war als langsames Weiterfahren. Erst der Fortschrittsterm (Abschnitt~\ref{subsec:3d_belohnung}) beseitigte diese Falle. Zum anderen verlor der Agent seine vortrainierte Sehfähigkeit. Das vortrainierte Netz fuhr allein 120 Schritte weit, der Agent nach \num{762000} Übergängen nur noch 44 und damit kürzer als ein Fahrzeug, das ohne Lenken 86 Schritte weit fährt. Das \ac{RL} hatte die vortrainierten Merkmale überschrieben.
 
-\section{Einfrieren des Encoders}
+\subsection{Einfrieren des Encoders}
 \label{sec:einfrieren}
 
 Wie wichtig das Einfrieren des Encoders ist, zeigt ein Gegenversuch: zwei Läufe mit identischem Aufbau, einmal mit eingefrorenem Encoder bis 2~Mio.\ Übergänge und einmal ohne Einfrieren. Der Aufbau entspricht dem von Agent~2 (Abschnitt~\ref{sec:agent2}).
@@ -90,12 +90,12 @@ Ohne Einfrieren wird der Agent blind. Schon nach einer halben Million Übergäng
 
 Damit ist das Einfrieren als notwendig belegt. Ohne Schutz zerstört das \ac{RL} den vortrainierten Encoder in den ersten Hunderttausend Übergängen, bevor der Kopf gelernt hat, ihn zu nutzen.
 
-\section{Der erste fahrende Kamera-Agent}
+\subsection{Der erste fahrende Kamera-Agent}
 \label{sec:agent1}
 
 Nach Behebung dieser Probleme gelingt mit Agent~1 das erste Training eines Kamera-Agenten, der zuverlässig Runden fährt.
 
-\subsection{Genutzte Parameter}
+\subsubsection{Genutzte Parameter}
 \label{subsec:agent1_einstellungen}
 
 Mit den Einstellungen aus Tabelle~\ref{tab:agent1_einstellungen} gelang das erste Training eines Kamera-Agenten, der zuverlässig Runden fährt.
@@ -126,7 +126,7 @@ Gegenüber den vorherigen Läufen wurden zwei Dinge geändert: Statt 64 laufen n
   \end{tabularx}
 \end{table}
 
-\subsection{Das Ergebnis}
+\subsubsection{Das Ergebnis}
 \label{subsec:agent1_ergebnis}
 
 Der erste erfolgreiche Agent fährt seine erste vollständige Runde nach rund \num{0.92}~Mio.\ Übergängen. Da das Training auf \num{1.5}~Mio.\ Übergänge ausgelegt ist und die Ergebnisse erstmals vielversprechend sind, wird es fortgesetzt: ausgehend vom Stand bei \num{1.2}~Mio.\ Übergängen um weitere \num{1.0}~Mio.\ Übergänge, mit doppelt so langen Episoden (\num{4000} statt \num{2000} Schritte). Längere Episoden setzen den Schwerpunkt auf stabiles Fahren, da der Agent mehr Runden am Stück fahren muss.
@@ -145,23 +145,23 @@ Deterministisch gemessen, also ohne Explorationsrauschen und über zehn Episoden
 Der kurze Einbruch zu Beginn der Fortsetzung in Abbildung~\ref{fig:agent1_verlauf} ist kein Verlernen. Stable-Baselines3 wählt in den ersten Schritten eines Laufs Zufallsaktionen, um den Speicher zu füllen; bei der Fortsetzung waren das \num{50000} Übergänge, in denen der Agent zufällig fuhr.
 
 \paragraph{Ursache des Durchbruchs.}
-Der Durchbruch dieses Agenten kann nicht eindeutig auf eine einzelne Änderung zurückgeführt werden. Gegenüber den vorherigen Läufen wird zum einen die Zahl der Umgebungen von 64 auf 4 reduziert, wodurch jede Umgebung einen größeren Anteil des Erfahrungsspeichers erhält, zum anderen werden erstmals die Faltungsschichten eingefroren. Damit wurde Regel~2 aus Phase~1, nur eine Änderung je Lauf (Abschnitt~\ref{sec:lessons}), verletzt.
+Der Durchbruch dieses Agenten kann nicht eindeutig auf eine einzelne Änderung zurückgeführt werden. Gegenüber den vorherigen Läufen wird zum einen die Zahl der Umgebungen von 64 auf 4 reduziert, wodurch jede Umgebung einen größeren Anteil des Erfahrungsspeichers erhält, zum anderen werden erstmals die Faltungsschichten eingefroren. Damit wurde der Grundsatz verletzt, je Lauf nur eine Größe zu verändern.
 
 Einen Hinweis liefert der vorherige Gegenversuch zum Einfrieren des Encoders (Abschnitt~\ref{sec:einfrieren}). Dort erblindet der Agent ohne Einfrieren, obwohl jede Umgebung mit \SI{104}{\minute} Fahrt über einen noch größeren Speicheranteil verfügt. Das spricht dafür, dass das Einfrieren den größeren Anteil am Durchbruch hatte. Für Agent~1 selbst ist es nicht belegt, da beide Änderungen nie getrennt untersucht wurden.
 
-\subsection{Eine Einschränkung}
+\subsubsection{Eine Einschränkung}
 \label{subsec:agent1_einschraenkung}
 
 Um zu prüfen, wie weit Agent~1 verallgemeinert, wurde er ohne weiteres Training auf derselben Streckenführung in anderen Darstellungen eingesetzt. Schon eine andere Darstellung genügt, damit er versagt. Auf jeder geprüften Darstellung fährt er null Runden, und jede Episode endet mit einem Crash, meist nach etwa einer Sekunde, ohne dass der Agent in Fahrt kommt. Das ist kein Fehler des Agenten, sondern eine Folge des Trainingsaufbaus. Über mehr als zwei Millionen Übergänge hinweg war das Kamerabild bis auf die Lage des Fahrzeugs identisch. Unter diesen Bedingungen ist Auswendiglernen die einfachste Lösung, und genau diese hat das Training gefunden.
 
 Das deckt sich mit dem Befund aus Phase~1, dass bereits \SI{0.05}{\percent} abweichende Pixel eine Policy umwerfen können (Abschnitt~\ref{subsec:buffer}).
 
-\section{Der zweite Agent}
+\subsection{Der zweite Agent}
 \label{sec:agent2}
 
 Dieser Abschnitt beschreibt den zweiten fahrenden Kamera-Agenten, im Folgenden Agent~2. Anders als Agent~1 soll er auch bei verändertem Aussehen der Strecke fahren. Dazu wechseln im Training die Darstellungen der Strecke, und der Encoder wird nicht auf die Aktionen eines Lehrers, sondern auf die Lage des Fahrzeugs vortrainiert.
 
-\subsection{Verallgemeinern der Erscheinung}
+\subsubsection{Verallgemeinern der Erscheinung}
 \label{subsec:agent2_darstellung}
 
 Das Problem von Agent~1 ist, dass er das Erscheinungsbild der Strecke und des Hintergrunds auswendig gelernt hat. Da der Agent auf einer realen Bahn fahren soll, muss dies behoben werden, da das reale Bild niemals exakt der Erscheinung der Simulation entsprechen wird. Untergrund, Licht, Unebenheiten und Farbunterschiede in der echten Strecke unterscheiden sich von der Simulation. Der Abstand zwischen der Darstellung im Training und der beim Einsatz heißt Domänenlücke (engl.\ \emph{domain gap}). Die übliche Abhilfe ist, im Training viele zufällig veränderte Darstellungen zu zeigen (\emph{Domain Randomization} \cite{tobin2017domain}).
@@ -177,12 +177,12 @@ Für die Randomisierung wurde ein Streckengenerator entwickelt, der Strecken aus
 
 Weiterhin wird das Bild für Agent~2 auf vier Graustufen reduziert. Feine Unterschiede der Oberflächen verschwinden dadurch weitgehend, während Fahrbahn, Randsteine und Fahrzeug unterscheidbar bleiben. Zugleich lassen sich die Bilder mit \SI{2}{\bit} je Pixel im Erfahrungsspeicher ablegen.
 
-\subsection{Das Training}
+\subsubsection{Das Training}
 \label{subsec:agent2_training}
 
 Agent~2 wird mit 16 parallelen Umgebungen trainiert. Der vortrainierte Encoder wird vollständig übernommen und bleibt bis 2~Mio.\ Übergänge eingefroren. Seine erste vollständige Runde fährt der Agent nach \num{3.9}~Mio.\ Übergängen. Das fertige Modell wurde über \num{14.5}~Mio.\ Übergänge in rund \SI{92}{\hour} trainiert.
 
-Abbildung~\ref{fig:agent2_verlauf} zeigt den Trainingsverlauf. Die Kurven enthalten das Explorationsrauschen und sind über alle Darstellungen gemittelt. Sie liegen daher deutlich unter den deterministisch gemessenen Werten. Zwischen \num{4.4} und 5~Mio.\ Übergängen stieg der Verlust des Critics um das Hundertfache, und das Fahren brach vorübergehend ein. Zeitlich fällt das mit den ersten Runden zusammen, deren Bonus die Zielwerte des Critics sprunghaft erhöht. Der Encoder blieb dabei intakt, und der Agent erholte sich ohne Eingriff. Das ist ein Hinweis zu der in Phase~1 offenen Frage, warum \ac{SAC}-Läufe nach ihrem Höhepunkt einbrechen (Abschnitt~\ref{sec:lessons}), aber keine Erklärung.
+Abbildung~\ref{fig:agent2_verlauf} zeigt den Trainingsverlauf. Die Kurven enthalten das Explorationsrauschen und sind über alle Darstellungen gemittelt. Sie liegen daher deutlich unter den deterministisch gemessenen Werten. Zwischen \num{4.4} und 5~Mio.\ Übergängen stieg der Verlust des Critics um das Hundertfache, und das Fahren brach vorübergehend ein. Zeitlich fällt das mit den ersten Runden zusammen, deren Bonus die Zielwerte des Critics sprunghaft erhöht. Der Encoder blieb dabei intakt, und der Agent erholte sich ohne Eingriff. Das ist ein Hinweis zu der in Phase~1 offenen Frage, warum \ac{SAC}-Läufe nach ihrem Höhepunkt einbrechen (Abschnitt~\ref{subsec:ppo_sac_vergleich}), aber keine Erklärung.
 
 \begin{figure}[htbp]
   \centering
@@ -191,7 +191,7 @@ Abbildung~\ref{fig:agent2_verlauf} zeigt den Trainingsverlauf. Die Kurven enthal
   \label{fig:agent2_verlauf}
 \end{figure}
 
-\subsection{Das Ergebnis}
+\subsubsection{Das Ergebnis}
 \label{subsec:agent2_ergebnis}
 
 Abbildung~\ref{fig:agent2_darstellungen} zeigt das Ergebnis von Agent~2 nach \num{14.5}~Mio.\ Übergängen auf allen zwölf Darstellungen. Im Mittel fährt er \num{4.5} Runden je Episode bei einem Tempo von \SI{0.53}{\meter\per\second}. Die beste Runde dauert \SI{9.65}{\second}, und \SI{31}{\percent} der Episoden enden mit einem Crash. Auf allen zwölf Darstellungen fährt er Runden, auf sieben davon im Mittel mindestens fünf.
@@ -217,7 +217,7 @@ Dazu passt ein überraschender Befund. Wird das Kamerabild bei der Messung auf a
 \paragraph{Lohnt sich das lange Training?}
 Agent~2 wurde nach \num{6.5} und nach \num{14.5}~Mio.\ Übergängen gemessen. Die Differenz von \num{0.54} Runden je Episode liegt innerhalb der Messunsicherheit (Standardfehler \num{0.61}), und die spätere Fassung ist nur auf sieben von zwölf Darstellungen besser. Sicher nachweisbar ist nur, dass sie schneller fährt, auf allen zwölf Darstellungen, mit kürzeren Rundenzeiten. Die zweite Hälfte des Trainings, rund \SI{50}{\hour}, hat also im Wesentlichen das Tempo verbessert, nicht die Zuverlässigkeit.
 
-\section{Vergleich der beiden Modelle}
+\subsection{Vergleich der beiden Modelle}
 \label{sec:agentenvergleich}
 
 Tabelle~\ref{tab:agentenvergleich} stellt Agent~1 und Agent~2 gegenüber. Die beiden Modelle lösen verschiedene Aufgaben und sind deshalb nicht direkt vergleichbar. Agent~1 fährt auf einer Darstellung und ist auf diese spezialisiert. Agent~2 dagegen fährt auf 12 unterschiedlichen Darstellungen.
@@ -248,12 +248,12 @@ Tabelle~\ref{tab:agentenvergleich} stellt Agent~1 und Agent~2 gegenüber. Die be
 
 Neben der Aufgabe unterscheiden sich die beiden Agenten vor allem im Vortraining. Agent~1 hat Fahrwissen vom Lehrer geerbt, Agent~2 hat nur gelernt, wo das Auto auf der Bahn liegt, und das Fahren vollständig selbst gelernt. Dass Agent~2 viermal so viele Übergänge bis zur ersten Runde braucht, ist vor diesem Hintergrund und bei zwölffacher Aufgabe nicht überraschend.
 
-\section{Test des zweiten Agenten auf anderen Streckenführungen}
+\subsection{Test des zweiten Agenten auf anderen Streckenführungen}
 \label{sec:andere_strecken}
 
 Agent~2 fährt auf allen zwölf Darstellungen der Trainingsstrecke. Offen ist, ob er damit das Fahren an sich gelernt hat oder nur diese eine Streckenführung. Dazu wird er zunächst ohne weiteres Training auf neuen Streckenführungen getestet und anschließend auf zwei davon weitertrainiert.
 
-\subsection{Test ohne Nachtraining}
+\subsubsection{Test ohne Nachtraining}
 \label{subsec:ohne_nachtraining}
 
 Agent~2 wird ohne weiteres Training auf vier neuen Streckenführungen (\texttt{kurs\_A} bis \texttt{kurs\_D}) getestet, die mit dem Streckengenerator aus Abschnitt~\ref{subsec:agent2_darstellung} erzeugt wurden. Damit sich nur die Führung verändert und nicht gleichzeitig das Aussehen, wurden für \texttt{kurs\_A} dieselben zwölf Darstellungen erzeugt, auf denen Agent~2 trainiert wurde (Tabelle~\ref{tab:ohne_nachtraining}).
@@ -279,7 +279,7 @@ Eine unbekannte Darstellung der bekannten Strecke fährt der Agent noch mit \num
 
 Besonders aufschlussreich ist, dass \texttt{kurs\_A} die um \SI{180}{\degree} gedrehte Originalstrecke ist. Der Agent hat also nicht die Form der Strecke gelernt, sondern die Form in dieser Lage im Kamerabild. Für eine fest montierte Kamera über einer festen Strecke ist das kein Nachteil. Ein Agent, der jede beliebige Strecke fährt, entsteht so aber nicht.
 
-\subsection{Weitertrainieren von Agent~2 gegen Neustart}
+\subsubsection{Weitertrainieren von Agent~2 gegen Neustart}
 \label{subsec:weitertrainieren}
 
 Da Agent~2 neue Streckenführungen ohne weiteres Training nicht fährt, wird untersucht, ob sein Vorwissen das Erlernen einer neuen Strecke zumindest beschleunigt. Dazu wird auf zwei Streckenführungen jeweils ein Weitertraining von Agent~2 mit einem Neustart verglichen:
