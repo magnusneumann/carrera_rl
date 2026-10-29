@@ -17,14 +17,14 @@ Die drei eingangs formulierten Ziele sind damit wie folgt erreicht:
   \item[Physikalisch präzises Fundament.] Erreicht. Das Fahrzeugmodell \texttt{measured\_v2} stammt aus einer Videomessung mit ausgewiesener Belastbarkeit -- die Bremsverzögerung ist gut belegt, die Höchstgeschwindigkeit ist ausdrücklich eine Annahme. Diese Umstellung war zugleich der teuerste und der wertvollste Einzelschritt des Projekts: Sie entwertete sämtliche vorherigen Ergebnisse und deckte dabei das eigentliche Problem auf.
 \end{description}
 
-Die ehrliche Bilanz enthält auch das, was \emph{nicht} erreicht wurde. Es existiert bis heute kein Kamera-Agent, der unter realistischer Physik und aus zufälligen Startlagen konstant Runden fährt; der beste ehrliche Wert liegt bei \num{3.1} Runden. Ein Agent, der menschliche Rundenzeiten schlägt, ist damit deutlich entfernt. Ob das Vortraining seinen Aufwand rechtfertigt, ist für \ac{SAC} nicht belegt. Warum \ac{SAC}-Läufe nach ihrem Höhepunkt einbrechen, ist beschrieben, aber nicht erklärt.
+Die ehrliche Bilanz enthält auch das, was \emph{nicht} erreicht wurde. Ein Agent, der menschliche Rundenzeiten schlägt, ist deutlich entfernt. Ob das Vortraining seinen Aufwand rechtfertigt, ist für \ac{SAC} nicht belegt. Warum \ac{SAC}-Läufe nach ihrem Höhepunkt einbrechen, ist beschrieben, aber nicht erklärt.
 
 Bemerkenswert ist rückblickend, wie viele der gewonnenen Erkenntnisse \emph{negative} Ergebnisse sind: das gescheiterte $\gamma$-Experiment, der wirkungslose gespreizte Framestapel, das vortrainierte Netz, das nicht fahren kann, und die als Auswendiglernen entlarvten Spitzenwerte. Für die Fortsetzung des Vorhabens sind sie wertvoller als die guten Zahlen aus der Anfangsphase, die sich teilweise als Artefakt eines fehlerhaften Fahrzeugmodells erwiesen haben.
 
 \section{Fazit zu Phase 2}
 \label{sec:fazit_phase2}
 
-Phase~2 hat die Machbarkeit gezeigt: Ein Agent kann in einer physikalisch simulierten, realitätsnah gerenderten Umgebung lernen, ein Fahrzeug allein anhand eines Kamerabildes zu steuern, und das auch bei wechselndem Aussehen der Strecke. Die Pipeline aus Phase~1 ließ sich dafür weitgehend unverändert übernehmen: Lehrer, Datenaufzeichnung, Vortraining und \ac{SAC}-Training mit denselben Hyperparametern, derselben Belohnungsfunktion und demselben gemessenen Fahrzeugmodell (Tabelle~\ref{tab:3d_vergleich2d}).
+Phase~2 hat die Machbarkeit gezeigt: Ein Agent kann in einer physikalisch simulierten, realitätsnah gerenderten Umgebung lernen, ein Fahrzeug allein anhand eines Kamerabildes zu steuern, und das auch bei wechselndem Aussehen der Strecke. Die Pipeline aus Phase~1 ließ sich dafür weitgehend unverändert übernehmen: Lehrer, Datenaufzeichnung, Vortraining und \ac{SAC}-Training mit denselben Hyperparametern, derselben, um einen Fortschrittsterm ergänzten Belohnungsfunktion und demselben gemessenen Fahrzeugmodell (Tabelle~\ref{tab:3d_vergleich2d}).
 
 \paragraph{Was entscheidend war.}
 Drei Punkte haben über Erfolg und Misserfolg entschieden:

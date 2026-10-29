@@ -2,7 +2,7 @@
 \chapter{Phase 2: 3D-Simulation in Isaac Sim}
 \label{chap:phase2}
 
-Phase~1 hat gezeigt, dass ein Agent lernen kann, ein Fahrzeug anhand eines Kamerabildes der Strecke und des Autos zu steuern. Die Umgebung ist dort jedoch zu Gunsten von Rechenzeit und Aufwand stark vereinfacht gestaltet. Aufgrund dessen sind die trainierten Agenten nicht dazu geeignet, ein reales Fahrzeug zu steuern.
+Phase~1 hat gezeigt, dass ein Agent grundsätzlich lernen kann, ein Fahrzeug anhand eines Kamerabildes der Strecke und des Autos zu steuern. Die Umgebung ist dort jedoch zu Gunsten von Rechenzeit und Aufwand stark vereinfacht gestaltet. Aufgrund dessen sind die trainierten Agenten nicht dazu geeignet, ein reales Fahrzeug zu steuern.
 
 Ziel dieses Kapitels ist daher, das Training in eine physikalisch realistische, dreidimensionale und realitätsnah gerenderte Umgebung zu übertragen und zu beleuchten, welche Anpassungen für die erfolgreiche Erweiterung der Simulation nötig sind. Als Simulationsplattform dient Isaac Sim; die Lernumgebung wird mit Isaac Lab \cite{nvidia_isaaclab} aufgebaut, das auf Isaac Sim aufsetzt und viele parallele Umgebungen simuliert. Dieses Kapitel beschreibt den Aufbau der Umgebung, den Trainingsablauf und die beiden fahrenden Kamera-Agenten und ordnet deren Ergebnisse und Schwächen ein.
 
@@ -182,7 +182,7 @@ Tabelle~\ref{tab:3d_vergleich2d} stellt die 2D-Umgebung aus Phase~1 und die 3D-U
     Pedale                    & Gas und Bremse überlagern sich & nur das stärkere Pedal wirkt \\
     Streckengrenzen           & Polygonüberschneidung & geometrische Prüfung der Reifenaufstandspunkte \\
     Belohnung                 & \texttt{v3\_rundenzeit} & übernommen, ergänzt um den Fortschrittsterm \\
-    Episoden                  & \num{2000} Schritte, Abbruch unter $-3000$, zufällige Startpositionen & übernommen \\
+    Episoden                  & \num{2000} Schritte, Abbruch unter $-3000$, zufällige Startpositionen & sinngemäß übernommen \\
     Lernverfahren             & \ac{SAC} (Stable-Baselines3 \cite{raffin2021stable}), NatureCNN, Lernrate \num{5e-5}, $\gamma = \num{0.99}$, \num{0.5} Updates je Übergang & übernommen \\
     Erfahrungsspeicher        & jedes Bild einmal abgelegt, Stapel beim Ziehen & übernommen; bei Agent~2 mit \SI{2}{\bit} je Pixel \\
     Parallele Umgebungen      & eine & 4 (Agent~1) bzw.\ 16 (Agent~2) \\
