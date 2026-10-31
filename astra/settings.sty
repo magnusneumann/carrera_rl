@@ -17,13 +17,13 @@
 % Zwei Verfassende. \Name wird von der Eigenständigkeitserklärung und der
 % Kopfzeile genutzt und fasst beide zusammen.
 \newcommand*{\NameA}{Felix Faaß}
-\newcommand*{\IdA}{[Matrikelnummer]}
+\newcommand*{\IdA}{106472}
 \newcommand*{\NameB}{Magnus Neumann}
-\newcommand*{\IdB}{[Matrikelnummer]}
+\newcommand*{\IdB}{103121}
 \newcommand*{\Name}{\NameA{} und \NameB}
 
 \newcommand*{\Location}{Karlsruhe}
-\newcommand*{\DeliveryDate}{[Abgabedatum]}
+\newcommand*{\DeliveryDate}{31.~Oktober 2026}
 
 \newcommand*{\University}{Hochschule Karlsruhe}
 \newcommand*{\Faculty}{Fakultät für Maschinenbau und Mechatronik}
@@ -73,7 +73,7 @@
 \usepackage{caption}
 \usepackage{subcaption}
 \captionsetup[figure]{labelfont=bf,textfont=normalfont,format=plain}
-\captionsetup[table]{labelfont=bf,textfont=normalfont,format=plain}
+\captionsetup[table]{labelfont=bf,textfont=normalfont,format=plain,singlelinecheck=false} % auch einzeilige links
 
 % ========================================
 % Nomenklatur
@@ -194,6 +194,7 @@
 \setlength{\emergencystretch}{2em}
 
 \usepackage{placeins}  % Floats fixieren: \FloatBarrier
+\usepackage{float}     % [H]: Tabelle/Abbildung genau an der Stelle im Text, kein Wandern in einen Absatz
 \usepackage{scrhack}   % KOMA mit anderen Paketen harmonisieren
 \usepackage{makecell}  % Zeilenumbruch in Tabellenzellen
 \usepackage{hyperref}  % Hyperlinks

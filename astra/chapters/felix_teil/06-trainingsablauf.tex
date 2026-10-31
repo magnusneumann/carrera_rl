@@ -16,16 +16,16 @@ Entsprechend der Python-Umgebung wird auch hier eine mehrstufige Trainingspipeli
   \label{fig:pipeline_stufen}
 \end{figure}
 
-\paragraph{Stufe 1 -- Lehrer.}
-Wie in Phase~1 wird zuerst ein Agent trainiert, der als Lehrer für den späteren bildbasierten Agenten dient (Abschnitt~\ref{subsec:privileged}). Während der Lehrer in der 2D-Umgebung anhand von Lidar-Strahlen lernte, ist er hier zustandsbasiert. Er erhält den exakten Zustand aus der Simulation, also Geschwindigkeit, Drehrate, Richtungsfehler, Querversatz und die Abstände zu beiden Fahrbahnkanten, sowie seine letzte Aktion. Da Isaac alle diese Größen ohnehin kennt, ist es nicht nötig, Abstandsstrahlen nachzubilden.
+\paragraph{Stufe 1 -- Experte.}
+Wie in Phase~1 wird zuerst ein Agent trainiert, der als Experte für den späteren bildbasierten Agenten dient (Abschnitt~\ref{subsec:privileged}). Während der Experte in der 2D-Umgebung anhand von Lidar-Strahlen lernte, ist er hier zustandsbasiert. Er erhält den exakten Zustand aus der Simulation, also Geschwindigkeit, Drehrate, Richtungsfehler, Querversatz und die Abstände zu beiden Fahrbahnkanten, sowie seine letzte Aktion. Da Isaac alle diese Größen ohnehin kennt, ist es nicht nötig, Abstandsstrahlen nachzubilden.
 
-Dieser Lehrer wird mit \ac{SAC} auf 64 parallelen Umgebungen trainiert und fährt nach \num{768000} Übergängen 8 Runden je Episode ohne Crash, mit einer Rundenzeit von ca.\ \SI{8.3}{\second}. Damit ist gezeigt, dass Physik und Belohnungsfunktion in 3D lösbar sind.
+Dieser Experte wird mit \ac{SAC} auf 64 parallelen Umgebungen trainiert und fährt nach \num{768000} Übergängen 8 Runden je Episode ohne Crash, mit einer Rundenzeit von ca.\ \SI{8.3}{\second}. Damit ist gezeigt, dass Physik und Belohnungsfunktion in 3D lösbar sind.
 
 \paragraph{Stufe 2 -- Datenaufzeichnung.}
-Anschließend fährt der Lehrer in der Kamera-Umgebung. Zu jedem Schritt werden der Bildstapel und die Aktion des Lehrers gespeichert, insgesamt \num{48000} Paare. Abweichend von Phase~1 fährt der Lehrer dabei deterministisch, ohne injiziertes Rauschen (Gleichung~\eqref{eq:noise}), Vielfalt im Datensatz entsteht nur durch die zufälligen Startpositionen. Für Agent~2 stammen die Bilder stattdessen aus einer Fahrt von Agent~1, die in allen zwölf Darstellungen der Strecke gerendert wird (Abschnitt~\ref{sec:agent2}).
+Anschließend fährt der Experte in der Kamera-Umgebung. Zu jedem Schritt werden der Bildstapel und die Aktion des Experten gespeichert, insgesamt \num{48000} Paare. Abweichend von Phase~1 fährt der Experte dabei deterministisch, ohne injiziertes Rauschen (Gleichung~\eqref{eq:noise}), Vielfalt im Datensatz entsteht nur durch die zufälligen Startpositionen. Für Agent~2 stammen die Bilder stattdessen aus einer Fahrt von Agent~1, die in allen zwölf Darstellungen der Strecke gerendert wird (Abschnitt~\ref{sec:agent2}).
 
 \paragraph{Stufe 3 -- Vortraining.}
-Vortrainiert wird der Teil des Netzes, der aus dem Bildstapel Merkmale berechnet, im Folgenden Merkmalsextraktor (Encoder). Er besteht wie in Phase~1 aus den drei Faltungsschichten des NatureCNN \cite{mnih2015human} und einer voll verbundenen Schicht mit 512 Neuronen. Für Agent~1 lernt das Netz analog zu Phase~1, die Aktionen des Lehrers nachzuahmen (\ac{BC}, Abschnitt~\ref{subsec:il}). Bestätigt wurde dabei die Warnung aus Abschnitt~\ref{sec:ergebnisse_pipeline}, dass ein niedriger Vorhersagefehler kein Fahrkönnen belegt: Von zwei Netzen fuhr das mit dem schlechteren Fehler ($R^2 = \num{0.25}$ gegen \num{0.47}) \SI{60}{\percent} weiter. Nach dem Vorhersagefehler wäre das schlechtere Netz ausgewählt worden. Vortrainierte Netze wurden deshalb im Fahrversuch bewertet, nicht am Verlust.
+Vortrainiert wird der Teil des Netzes, der aus dem Bildstapel Merkmale berechnet, im Folgenden Merkmalsextraktor (Encoder). Er besteht wie in Phase~1 aus den drei Faltungsschichten des NatureCNN \cite{mnih2015human} und einer voll verbundenen Schicht mit 512 Neuronen. Für Agent~1 lernt das Netz analog zu Phase~1, die Aktionen des Experten nachzuahmen (\ac{BC}, Abschnitt~\ref{subsec:il}). Bestätigt wurde dabei die Warnung aus Abschnitt~\ref{sec:ergebnisse_pipeline}, dass ein niedriger Vorhersagefehler kein Fahrkönnen belegt: Von zwei Netzen fuhr das mit dem schlechteren Fehler ($R^2 = \num{0.25}$ gegen \num{0.47}) \SI{60}{\percent} weiter. Nach dem Vorhersagefehler wäre das schlechtere Netz ausgewählt worden. Vortrainierte Netze wurden deshalb im Fahrversuch bewertet, nicht am Verlust.
 
 Für Agent~2 lernt der Encoder dagegen nicht die Aktionen, sondern nur die Lage des Fahrzeugs, Querversatz zur Mittellinie und Richtungsfehler, beide aus der Simulation exakt bekannt. Vortrainiert wird damit nur das Sehen, nicht das Fahren, wie auf eine Situation zu reagieren ist, lernt der Agent erst im \ac{RL}-Training.
 
@@ -46,12 +46,12 @@ Während des Trainings fährt der Agent parallel in mehreren Umgebungen. Jeder �
 Als Eingabe erhält der Agent ausschließlich den Bildstapel. Belohnung, frühere Aktionen oder die Geschwindigkeit werden nicht zurückgeführt, die Belohnung dient nur als Lernsignal für den Critic.
 
 \paragraph{Bewertung.}
-Die Agenten werden nach dem Training deterministisch bewertet, also ohne Zufallsanteil der Aktionen und ohne Bildstörungen, mit zufälligen Startpositionen und getrennt je Darstellung der Strecke. Dabei werden Runden je Episode, mittleres Tempo, beste Rundenzeit und der Anteil der Episoden, die mit einem Crash enden, gemessen. Die Werte aus dem Training eignen sich dafür nicht, weil die Aktionen dort zufällig gestreut und über alle Darstellungen gemittelt sind. Da gute Agenten in \SI{66.67}{\second} das Zeitlimit von etwa sechs Runden erreichen, wurden die fertigen Modelle zusätzlich mit \SI{200}{\second} langen Episoden gemessen.
+Die Agenten werden nach dem Training deterministisch bewertet, also ohne Zufallsanteil der Aktionen und ohne Bildstörungen, mit zufälligen Startpositionen und getrennt je Darstellung der Strecke. Dabei werden Runden je Episode, mittlere Geschwindigkeit, beste Rundenzeit und der Anteil der Episoden, die mit einem Crash enden, gemessen. Die Werte aus dem Training eignen sich dafür nicht, weil die Aktionen dort zufällig gestreut und über alle Darstellungen gemittelt sind. Da gute Agenten in \SI{66.67}{\second} das Zeitlimit von etwa sechs Runden erreichen, wurden die fertigen Modelle zusätzlich mit \SI{200}{\second} langen Episoden gemessen.
 
 \subsection{Probleme auf dem Weg zum ersten Agenten}
 \label{sec:probleme_agent1}
 
-Bis zum ersten fahrenden Kamera-Agenten vergingen etwa \SI{125}{\hour} Rechenzeit in Läufen, die nichts lernen konnten. Die wesentlichen Fehler traten ohne Absturz oder Warnung auf. Mehrere Fehler betrafen die Vortrainingskette: invertierte Lehrerbilder, Lehreraktionen außerhalb des gültigen Wertebereichs und das Speichern der letzten statt der besten Trainingsepoche.
+Bis zum ersten fahrenden Kamera-Agenten vergingen etwa \SI{125}{\hour} Rechenzeit in Läufen, die nichts lernen konnten. Die wesentlichen Fehler traten ohne Absturz oder Warnung auf. Mehrere Fehler betrafen die Vortrainingskette: invertierte Expertenbilder, Expertenaktionen außerhalb des gültigen Wertebereichs und das Speichern der letzten statt der besten Trainingsepoche.
 
 Auch mit korrektem Bild lernte der Agent zunächst nicht zu fahren. Zum einen bestand eine Belohnungsfalle: Ohne den Fortschrittsterm brachte Geradeausfahren erst ab \SI{0.52}{\meter\per\second} Pluspunkte, sodass ein schnelles Verlassen der Fahrbahn für den Agenten günstiger war als langsames Weiterfahren. Erst der Fortschrittsterm (Abschnitt~\ref{subsec:3d_belohnung}) beseitigte diese Falle. Zum anderen verlor der Agent seine vortrainierte Sehfähigkeit. Das vortrainierte Netz fuhr allein 120 Schritte weit, der Agent nach \num{762000} Übergängen nur noch 44 und damit kürzer als ein Fahrzeug, das ohne Lenken 86 Schritte weit fährt. Das \ac{RL} hatte die vortrainierten Merkmale überschrieben.
 
@@ -86,7 +86,7 @@ Neben der Episodenlänge werden dafür zwei Kennzahlen aufgezeichnet, beide auf 
   \label{fig:gegenversuch_einfrieren}
 \end{figure}
 
-Ohne Einfrieren wird der Agent blind. Schon nach einer halben Million Übergängen hängt der Lenkbefehl nicht mehr vom Bild ab, und die 512er-Schicht stirbt bis zum Ende fast vollständig ab. Der Agent fährt keine Runde, die Episoden enden nach etwa einer Sekunde. Mit Einfrieren bleibt das Sehen erhalten; nach dem Auftauen steigen Episodenlänge und Tempo, und der Agent fährt nach \num{2.9}~Mio.\ Übergängen seine erste Runde.
+Ohne Einfrieren wird der Agent blind. Schon nach einer halben Million Übergängen hängt der Lenkbefehl nicht mehr vom Bild ab, und die 512er-Schicht stirbt bis zum Ende fast vollständig ab. Der Agent fährt keine Runde, die Episoden enden nach etwa einer Sekunde. Mit Einfrieren bleibt das Sehen erhalten; nach dem Auftauen steigen Episodenlänge und Geschwindigkeit, und der Agent fährt nach \num{2.9}~Mio.\ Übergängen seine erste Runde.
 
 Damit ist das Einfrieren als notwendig belegt. Ohne Schutz zerstört das \ac{RL} den vortrainierten Encoder in den ersten Hunderttausend Übergängen, bevor der Kopf gelernt hat, ihn zu nutzen.
 
@@ -114,7 +114,7 @@ Gegenüber den vorherigen Läufen wurden zwei Dinge geändert: Statt 64 laufen n
     Parallele Umgebungen                    & 4 \\
     Beobachtung                             & 3 Bilder à \num{250} $\times$ \num{150} Pixel, 256 Graustufen \\
     Darstellungen der Strecke               & 1 \\
-    Vortraining                             & \ac{BC} auf \num{48000} Lehrerpaaren; übernommen: Faltungsschichten \\
+    Vortraining                             & \ac{BC} auf \num{48000} Expertenpaaren; übernommen: Faltungsschichten \\
     Eingefroren                             & Faltungsschichten bis \num{0.3}~Mio.\ Übergänge \\
     Batchgröße / Updates                    & 512 / 2 je Simulationsschritt (\num{0.5} je Übergang) \\
     Erfahrungsspeicher gesamt / je Umgebung & \num{500000} / \num{125000} Übergänge ($\approx$ \SI{69}{\minute} Fahrt) \\
@@ -140,7 +140,7 @@ Dieser Agent lernt auf einer Strecke mit stets gleicher Darstellung. Abbildung~\
   \label{fig:agent1_verlauf}
 \end{figure}
 
-Deterministisch gemessen, also ohne Explorationsrauschen und über zehn Episoden, fährt Agent~1 auf seiner Darstellung \num{6.4} Runden je Episode von \SI{66.67}{\second}, mit einer mittleren Geschwindigkeit von \SI{0.65}{\meter\per\second} und einer besten Runde von \SI{8.65}{\second}. Ca.\ \SI{10}{\percent} der Episoden enden mit einem Crash. Zum Vergleich fährt der zustandsbasierte Lehrer, der alle Größen exakt kennt, auf der gleichen Strecke etwa \SI{8.3}{\second} je Runde. Agent~1 ist also rund \SI{4}{\percent} langsamer, obwohl dieser die Lage und Bewegungen des Fahrzeugs aus \num{9} $\times$ \num{4} Pixeln ablesen muss. In Episoden von \SI{200}{\second} fährt er im Mittel \num{10.4} Runden mit einer besten Runde von \SI{8.59}{\second}. In 3 von 10 Episoden fährt er rund 20 Runden ohne Crash, \SI{70}{\percent} der langen Episoden enden jedoch vorzeitig. Der beste Bild-Agent der 2D-Umgebung schaffte unter vergleichbaren Bedingungen mit gestreuten Startpunkten \num{3.1} Runden.
+Deterministisch gemessen, also ohne Explorationsrauschen und über zehn Episoden, fährt Agent~1 auf seiner Darstellung \num{6.4} Runden je Episode von \SI{66.67}{\second}, mit einer mittleren Geschwindigkeit von \SI{0.65}{\meter\per\second} und einer besten Runde von \SI{8.65}{\second}. Ca.\ \SI{10}{\percent} der Episoden enden mit einem Crash. Zum Vergleich fährt der zustandsbasierte Experte, der alle Größen exakt kennt, auf der gleichen Strecke etwa \SI{8.3}{\second} je Runde. Agent~1 ist also rund \SI{4}{\percent} langsamer, obwohl dieser die Lage und Bewegungen des Fahrzeugs aus \num{9} $\times$ \num{4} Pixeln ablesen muss. In Episoden von \SI{200}{\second} fährt er im Mittel \num{10.4} Runden mit einer besten Runde von \SI{8.59}{\second}. In 3 von 10 Episoden fährt er rund 20 Runden ohne Crash, \SI{70}{\percent} der langen Episoden enden jedoch vorzeitig. Der beste Bild-Agent der 2D-Umgebung schaffte unter vergleichbaren Bedingungen mit gestreuten Startpunkten \num{3.1} Runden.
 
 Der kurze Einbruch zu Beginn der Fortsetzung in Abbildung~\ref{fig:agent1_verlauf} ist kein Verlernen. Stable-Baselines3 wählt in den ersten Schritten eines Laufs Zufallsaktionen, um den Speicher zu füllen; bei der Fortsetzung waren das \num{50000} Übergänge, in denen der Agent zufällig fuhr.
 
@@ -159,7 +159,7 @@ Das deckt sich mit dem Befund aus Phase~1, dass bereits \SI{0.05}{\percent} abwe
 \subsection{Der zweite Agent}
 \label{sec:agent2}
 
-Dieser Abschnitt beschreibt den zweiten fahrenden Kamera-Agenten, im Folgenden Agent~2. Anders als Agent~1 soll er auch bei verändertem Aussehen der Strecke fahren. Dazu wechseln im Training die Darstellungen der Strecke, und der Encoder wird nicht auf die Aktionen eines Lehrers, sondern auf die Lage des Fahrzeugs vortrainiert.
+Dieser Abschnitt beschreibt den zweiten fahrenden Kamera-Agenten, im Folgenden Agent~2. Anders als Agent~1 soll er auch bei verändertem Aussehen der Strecke fahren. Dazu wechseln im Training die Darstellungen der Strecke, und der Encoder wird nicht auf die Aktionen eines Experten, sondern auf die Lage des Fahrzeugs vortrainiert.
 
 \subsubsection{Verallgemeinern der Erscheinung}
 \label{subsec:agent2_darstellung}
@@ -194,7 +194,7 @@ Abbildung~\ref{fig:agent2_verlauf} zeigt den Trainingsverlauf. Die Kurven enthal
 \subsubsection{Das Ergebnis}
 \label{subsec:agent2_ergebnis}
 
-Abbildung~\ref{fig:agent2_darstellungen} zeigt das Ergebnis von Agent~2 nach \num{14.5}~Mio.\ Übergängen auf allen zwölf Darstellungen. Im Mittel fährt er \num{4.5} Runden je Episode bei einem Tempo von \SI{0.53}{\meter\per\second}. Die beste Runde dauert \SI{9.65}{\second}, und \SI{31}{\percent} der Episoden enden mit einem Crash. Auf allen zwölf Darstellungen fährt er Runden, auf sieben davon im Mittel mindestens fünf.
+Abbildung~\ref{fig:agent2_darstellungen} zeigt das Ergebnis von Agent~2 nach \num{14.5}~Mio.\ Übergängen auf allen zwölf Darstellungen. Im Mittel fährt er \num{4.5} Runden je Episode bei einer Geschwindigkeit von \SI{0.53}{\meter\per\second}. Die beste Runde dauert \SI{9.65}{\second}, und \SI{31}{\percent} der Episoden enden mit einem Crash. Auf allen zwölf Darstellungen fährt er Runden, auf sieben davon im Mittel mindestens fünf.
 
 \begin{figure}[htbp]
   \centering
@@ -209,13 +209,13 @@ Drei Darstellungen erreichen bei \SI{66.67}{\second} das Zeitlimit von sechs Run
 Als Gegenprobe wurde Agent~1 auf denselben zwölf Darstellungen gemessen: Er fährt auf keiner einzigen eine Runde und verlässt nach etwa einer Sekunde die Fahrbahn. Die Verallgemeinerung von Agent~2 ist damit nicht nur behauptet, sondern gegen ein Modell ohne Randomisierung geprüft.
 
 \paragraph{Wo die schwachen Darstellungen scheitern.}
-Auf den Darstellungen mit vielen Crashes verlässt der Agent fast immer in derselben Kurve die Fahrbahn. Der Hergang ist jedes Mal gleich: Innerhalb von \SI{0.3}{\second} wächst der Richtungsfehler von nahezu null auf über \SI{30}{\degree}, und der Gegenlenkbefehl kommt zu spät. Das Tempo ist dabei nicht die Ursache; auf einer sicher gefahrenen Darstellung durchfährt er dieselbe Kurve sogar schneller. Auch die Sichtbarkeit ist es nicht: Der Encoder liest die Lage auf der schwächsten Darstellung genauer ab als auf mancher sicher gefahrenen. Der Agent hat an dieser Stelle schlicht eine sehr kleine Reserve, sodass jede kleine Änderung der Eingabe das Ergebnis umkippen kann.
+Auf den Darstellungen mit vielen Crashes verlässt der Agent fast immer in derselben Kurve die Fahrbahn. Der Hergang ist jedes Mal gleich: Innerhalb von \SI{0.3}{\second} wächst der Richtungsfehler von nahezu null auf über \SI{30}{\degree}, und der Gegenlenkbefehl kommt zu spät. Die Geschwindigkeit ist dabei nicht die Ursache; auf einer sicher gefahrenen Darstellung durchfährt er dieselbe Kurve sogar schneller. Auch die Sichtbarkeit ist es nicht: Der Encoder liest die Lage auf der schwächsten Darstellung genauer ab als auf mancher sicher gefahrenen. Der Agent hat an dieser Stelle schlicht eine sehr kleine Reserve, sodass jede kleine Änderung der Eingabe das Ergebnis umkippen kann.
 
 \paragraph{Feinere Graustufen.}
 Dazu passt ein überraschender Befund. Wird das Kamerabild bei der Messung auf acht statt auf die trainierten vier Graustufen reduziert, sinkt die Crashrate auf der Darstellung \texttt{fb52\_fliesen} von \SI{80}{\percent} auf \SI{0}{\percent}, ohne jedes Nachtraining, auch mit 16 und 256 Stufen gab es keinen Crash. Der Agent verträgt also feinere Eingaben als die, auf denen er trainiert wurde. Für die Übertragung auf eine echte Kamera mit 256 Graustufen ist das die günstige Richtung.
 
 \paragraph{Lohnt sich das lange Training?}
-Agent~2 wurde nach \num{6.5} und nach \num{14.5}~Mio.\ Übergängen gemessen. Die Differenz von \num{0.54} Runden je Episode liegt innerhalb der Messunsicherheit (Standardfehler \num{0.61}), und die spätere Fassung ist nur auf sieben von zwölf Darstellungen besser. Sicher nachweisbar ist nur, dass sie schneller fährt, auf allen zwölf Darstellungen, mit kürzeren Rundenzeiten. Die zweite Hälfte des Trainings, rund \SI{50}{\hour}, hat also im Wesentlichen das Tempo verbessert, nicht die Zuverlässigkeit.
+Agent~2 wurde nach \num{6.5} und nach \num{14.5}~Mio.\ Übergängen gemessen. Die Differenz von \num{0.54} Runden je Episode liegt innerhalb der Messunsicherheit (Standardfehler \num{0.61}), und die spätere Fassung ist nur auf sieben von zwölf Darstellungen besser. Sicher nachweisbar ist nur, dass sie schneller fährt, auf allen zwölf Darstellungen, mit kürzeren Rundenzeiten. Die zweite Hälfte des Trainings, rund \SI{50}{\hour}, hat also im Wesentlichen die Geschwindigkeit verbessert, nicht die Zuverlässigkeit.
 
 \subsection{Vergleich der beiden Modelle}
 \label{sec:agentenvergleich}
@@ -232,7 +232,7 @@ Tabelle~\ref{tab:agentenvergleich} stellt Agent~1 und Agent~2 gegenüber. Die be
      & \textbf{Agent~1} & \textbf{Agent~2} \\
     \midrule
     Aufgabe                          & 1 Darstellung & 12 Darstellungen mit Bildstörungen \\
-    Vortraining                      & \ac{BC} eines Lehrers (Fahrwissen) & Encoder für Versatz und Richtung (nur Sehwissen) \\
+    Vortraining                      & \ac{BC} eines Experten (Fahrwissen) & Encoder für Versatz und Richtung (nur Sehwissen) \\
     Eingefroren                      & Faltungen bis \num{0.3}~Mio.\ Übergänge & gesamter Encoder bis 2~Mio.\ Übergänge \\
     Parallele Umgebungen             & 4 & 16 \\
     Graustufen                       & 256 & 4 \\
@@ -246,7 +246,7 @@ Tabelle~\ref{tab:agentenvergleich} stellt Agent~1 und Agent~2 gegenüber. Die be
   \end{tabularx}
 \end{table}
 
-Neben der Aufgabe unterscheiden sich die beiden Agenten vor allem im Vortraining. Agent~1 hat Fahrwissen vom Lehrer geerbt, Agent~2 hat nur gelernt, wo das Auto auf der Bahn liegt, und das Fahren vollständig selbst gelernt. Dass Agent~2 viermal so viele Übergänge bis zur ersten Runde braucht, ist vor diesem Hintergrund und bei zwölffacher Aufgabe nicht überraschend.
+Neben der Aufgabe unterscheiden sich die beiden Agenten vor allem im Vortraining. Agent~1 hat Fahrwissen vom Experten geerbt, Agent~2 hat nur gelernt, wo das Auto auf der Bahn liegt, und das Fahren vollständig selbst gelernt. Dass Agent~2 viermal so viele Übergänge bis zur ersten Runde braucht, ist vor diesem Hintergrund und bei zwölffacher Aufgabe nicht überraschend.
 
 \subsection{Test des zweiten Agenten auf anderen Streckenführungen}
 \label{sec:andere_strecken}

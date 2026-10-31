@@ -9,20 +9,20 @@ Das wesentliche Ergebnis der 2D-Untersuchungen ist keine einzelne Zahl, sondern 
 
 Die Pipeline gliedert sich in vier Stufen. Entscheidend ist nicht nur ihre Reihenfolge, sondern dass jede Stufe eine eigene, unabhängig prüfbare Aussage liefert -- so lässt sich ein Fehlschlag eindeutig zuordnen, statt die gesamte Kette in Frage zu stellen.
 
-\paragraph{Stufe 1 -- Privilegierter Lehrer-Agent.}
-Ein zweischichtiges \ac{MLP} wird mit \ac{PPO} auf der vierdimensionalen Raycast-Beobachtung nach Gleichung~\eqref{eq:lidar_obs} trainiert. Der Agent konvergiert in rund zwölf Minuten und fährt anschließend elf fehlerfreie Runden bei einem Durchschnittstempo von etwa \SI{1.2}{\meter\per\second}.
+\paragraph{Stufe 1 -- Privilegierter Experten-Agent.}
+Ein zweischichtiges \ac{MLP} wird mit \ac{PPO} auf der vierdimensionalen Raycast-Beobachtung nach Gleichung~\eqref{eq:lidar_obs} trainiert. Der Agent konvergiert in rund zwölf Minuten und fährt anschließend elf fehlerfreie Runden bei einer Durchschnittsgeschwindigkeit von etwa \SI{1.2}{\meter\per\second}.
 
-\emph{Prüfkriterium:} Erreicht der Lehrer die volle Episodenlänge ohne Crash, sind Physik, Belohnungsfunktion, Streckengeometrie und Trainingspipeline lösbar. Erst dann ist eine Kameravariante sinnvoll.
+\emph{Prüfkriterium:} Erreicht der Experte die volle Episodenlänge ohne Crash, sind Physik, Belohnungsfunktion, Streckengeometrie und Trainingspipeline lösbar. Erst dann ist eine Kameravariante sinnvoll.
 
 \paragraph{Stufe 2 -- Datenaufzeichnung mit Rausch-Injektion.}
-Der Lehrer fährt die Strecke unter additivem gaußschem Rauschen auf seine Aktionen (Gleichung~\eqref{eq:noise}). Das Fahrzeug driftet dadurch von der Ideallinie ab, und der Lehrer muss aktiv gegensteuern. Aufgezeichnet werden Paare aus visuellem Dreierstapel und der \emph{unverrauschten} Korrekturaktion. Der Datensatz enthält dadurch Rettungsmanöver, die eine perfekte Vorführung nie erzeugen würde.
+Der Experte fährt die Strecke unter additivem gaußschem Rauschen auf seine Aktionen (Gleichung~\eqref{eq:noise}). Das Fahrzeug driftet dadurch von der Ideallinie ab, und der Experte muss aktiv gegensteuern. Aufgezeichnet werden Paare aus visuellem Dreierstapel und der \emph{unverrauschten} Korrekturaktion. Der Datensatz enthält dadurch Rettungsmanöver, die eine perfekte Vorführung nie erzeugen würde.
 
 \emph{Prüfkriterium:} Der Datensatz muss Zustände abseits der Ideallinie enthalten; ein Datensatz ohne Abweichungen erzeugt einen Schüler, der beim ersten eigenen Fehler ausfällt.
 
 \paragraph{Stufe 3 -- Visuelles Vortraining.}
-Ein \ac{CNN} lernt überwacht, die Expertenaktionen aus dem Bildstapel vorherzusagen (Gleichung~\eqref{eq:bc}). Erreicht wird ein MSE von \num{0.0034}. Übertragen werden anschließend ausschließlich die drei Faltungsschichten; die Linear-Schichten werden verworfen.
+Ein \ac{CNN} lernt überwacht, die Expertenaktionen aus dem Bildstapel vorherzusagen (Gleichung~\eqref{eq:bc}). Erreicht wird ein \acs{MSE} von \num{0.0034}. Übertragen werden anschließend ausschließlich die drei Faltungsschichten; die Linear-Schichten werden verworfen.
 
-\emph{Prüfkriterium:} Hier ist besondere Vorsicht geboten. Ein niedriger MSE belegt \emph{nicht}, dass das Netz fahren kann -- in diesem Projekt fuhr kein einziges vortrainiertes Netz eigenständig mehr als \num{230} Frames. Was der Schritt liefert, ist Sehfähigkeit, nicht Fahrwissen. Ob er seinen Aufwand rechtfertigt, ist für \ac{SAC} bis heute nicht belegt (Abschnitt~\ref{subsec:vortraining}).
+\emph{Prüfkriterium:} Hier ist besondere Vorsicht geboten. Ein niedriger \acs{MSE} belegt \emph{nicht}, dass das Netz fahren kann -- in diesem Projekt fuhr kein einziges vortrainiertes Netz eigenständig mehr als \num{230} Frames. Was der Schritt liefert, ist Sehfähigkeit, nicht Fahrwissen. Ob er seinen Aufwand rechtfertigt, ist für \ac{SAC} bis heute nicht belegt (Abschnitt~\ref{subsec:vortraining}).
 
 \paragraph{Stufe 4 -- Online-Feintuning mit SAC.}
 Der so initialisierte Agent wird mit \ac{SAC} auf der Bildbeobachtung weitertrainiert. Maßgeblich sind dabei die in Tabelle~\ref{tab:pipeline_config} zusammengefassten Einstellungen; sie stammen aus dem aktuellsten großen Trainingslauf und sind die Konfiguration, die für Phase~2 übernommen wurde.
@@ -64,20 +64,21 @@ Die zentrale methodische Einsicht dieses Projekts betrifft die Frage, welche Zah
   \item \textbf{Auch dieselbe Auswertung liefert nicht zwangsläufig dieselben Zahlen.} Die Nachauswertung in Tabelle~\ref{tab:vergleich_aktuell} weist für mehrere Modelle andere Episodenlängen und Rundenzahlen aus als die frühere Messung in Tabelle~\ref{tab:kontrollversuch} -- für Lauf \texttt{2210} etwa \num{759} statt \num{256} Frames. Als Ursachen kommen die reparierte Belohnungsfunktion, zwischenzeitliche Änderungen an der Umgebung und das Auswertungsgerät in Frage; Letzteres ist nachweislich hinreichend, um eine Episode vollständig zu verändern (Abschnitt~\ref{subsec:fallen_phase1}). Welcher Anteil überwiegt, ist \textbf{nicht abschließend geklärt}. Für diesen Bericht gilt daher die Regel, ausschließlich Werte aus \emph{demselben} Auswertungslauf miteinander zu vergleichen.
 \end{enumerate}
 
-Aus diesem Grund werden im Folgenden zwei Größen bevorzugt, die über Belohnungsänderungen hinweg tragen: die Zahl vollständiger Runden und das Durchschnittstempo.
+Aus diesem Grund werden im Folgenden zwei Größen bevorzugt, die über Belohnungsänderungen hinweg tragen: die Zahl vollständiger Runden und die Durchschnittsgeschwindigkeit.
 
 \subsection*{Nachauswertung aller Modelle}
 
 Tabelle~\ref{tab:vergleich_aktuell} zeigt die aktuellste Nachauswertung. Alle Modelle unter \texttt{measured\_v2} wurden dafür in derselben Umgebung, mit derselben Belohnungsversion und auf demselben Gerät neu gefahren.
 
-\begin{table}[htbp]
+\begin{table}[H]
   \centering
   \caption{Nachauswertung aller Modelle unter \texttt{measured\_v2} im aktuellen Codestand, je drei deterministische Episoden vom festen Startpunkt (\texttt{models/vergleich.json}). Die Rundenzahl zählt die erste Zielüberquerung als Start und nicht als Runde.}
   \label{tab:vergleich_aktuell}
   \small
+  \setlength{\tabcolsep}{5pt} % Spalte „Geschwindigkeit" passt sonst nicht in die Breite
   \begin{tabular}{@{}l l r r r r@{}}
     \toprule
-    \textbf{Modell} & \textbf{Beobachtung} & \textbf{Reward} & \textbf{Frames} & \textbf{Runden} & \textbf{$\varnothing$ Tempo} \\
+    \textbf{Modell} & \textbf{Beobachtung} & \textbf{Reward} & \textbf{Frames} & \textbf{Runden} & \textbf{$\varnothing$ Geschwindigkeit} \\
     \midrule
     \multicolumn{6}{@{}l}{\textit{Privilegierte Beobachtung}} \\
     Lidar-Experte \texttt{2236} (PPO) & exakt & \num{6711.7} & \num{2000} & \num{11} & \SI{1.23}{\meter\per\second} \\
@@ -100,10 +101,10 @@ Tabelle~\ref{tab:vergleich_aktuell} zeigt die aktuellste Nachauswertung. Alle Mo
 Aus dieser Zusammenstellung lassen sich vier Aussagen ableiten.
 
 \paragraph{Die Aufgabe ist lösbar, und zwar sicher.}
-Vier unabhängig trainierte Lehrer-Agenten erreichen reproduzierbar elf Runden bei voller Episodenlänge -- unabhängig vom Algorithmus, denn sowohl \ac{PPO} als auch \ac{SAC} lösen sie. Die Streuung zwischen den Läufen betrifft nur das Tempo (\SIrange{1.04}{1.23}{\meter\per\second}), nicht das grundsätzliche Gelingen.
+Vier unabhängig trainierte Experten-Agenten erreichen reproduzierbar elf Runden bei voller Episodenlänge -- unabhängig vom Algorithmus, denn sowohl \ac{PPO} als auch \ac{SAC} lösen sie. Die Streuung zwischen den Läufen betrifft nur die Geschwindigkeit (\SIrange{1.04}{1.23}{\meter\per\second}), nicht das grundsätzliche Gelingen.
 
 \paragraph{Bildbeobachtung kostet mindestens den Faktor 70 an Aufwand.}
-Der Lehrer erreicht die volle Episodenlänge nach \num{50000} Schritten und über \num{5000} Belohnungspunkte nach \num{70000} Schritten. Der beste Kamera-Agent benötigt dafür Millionen von Schritten und Stunden bis Tage an Rechenzeit. Der Unterschied zwischen zwölf Minuten und über zwanzig Stunden ist der Preis dafür, aus Pixeln zu lernen.
+Der Experte erreicht die volle Episodenlänge nach \num{50000} Schritten und über \num{5000} Belohnungspunkte nach \num{70000} Schritten. Der beste Kamera-Agent benötigt dafür Millionen von Schritten und Stunden bis Tage an Rechenzeit. Der Unterschied zwischen zwölf Minuten und über zwanzig Stunden ist der Preis dafür, aus Pixeln zu lernen.
 
 \paragraph{Der scheinbar beste Kamera-Agent ist der unehrlichste Messwert.}
 Lauf \texttt{2254} steht mit \num{5080.5} Punkten und neun Runden an der Spitze der Bildbeobachtungen. Er wurde jedoch mit festem Startpunkt trainiert und wird hier vom selben festen Startpunkt ausgewertet. Aus zufälligen Startlagen fällt derselbe Agent auf \num{-1829.2} Punkte und \num{0.6} Runden (Tabelle~\ref{tab:startpunkte}). Die neun Runden sind eine abgespulte Trajektorie, keine Fahrfähigkeit. Der mit streuendem Startpunkt trainierte Lauf \texttt{2215} erreicht \num{1545.7} Punkte und \num{3.1} Runden aus zufälligen Lagen -- deutlich weniger auf dem Papier, aber das erste ehrliche Ergebnis der Reihe.
@@ -122,7 +123,7 @@ Zusammengefasst liefert Phase~1 folgende belegte Aussagen:
   \item \textbf{Der Startpunkt muss streuen}, sonst misst die Auswertung Wiederholbarkeit statt Fahrfähigkeit.
   \item \textbf{Eine feste Terminalstrafe macht die Belohnungskennzahl bimodal} und damit über weite Strecken des Trainings uninformativ.
   \item \textbf{Vortraining überträgt Sehfähigkeit, nicht Fahrwissen.} Der praktische Nutzen ist beobachtet, der Beleg für \ac{SAC} steht aus.
-  \item \textbf{Generalisierung und Overfitting im Gegensatz.} Das Ziel eines übermenschlichen Fahrers auf einer bestimmten Strecke schließt Overfitting nicht aus. Das Training des Vision-Agenten würde jedoch vermutlich besser konvergieren, wenn Lehrer und Datensatz stärker generalisierten. Dass nach dem Vortraining katastrophales Vergessen (\emph{Catastrophic Forgetting}) auftritt, kann ein Hinweis auf einen zu eintönigen Lehrerdatensatz sein.
+  \item \textbf{Generalisierung und Overfitting im Gegensatz.} Das Ziel eines übermenschlichen Fahrers auf einer bestimmten Strecke schließt Overfitting nicht aus. Das Training des Vision-Agenten würde jedoch vermutlich besser konvergieren, wenn Experte und Datensatz stärker generalisierten. Dass nach dem Vortraining katastrophales Vergessen (\emph{Catastrophic Forgetting}) auftritt, kann ein Hinweis auf einen zu eintönigen Expertendatensatz sein.
 \end{enumerate}
 
 \section{Ergebnisse aus Phase 2}
@@ -131,7 +132,7 @@ Zusammengefasst liefert Phase~1 folgende belegte Aussagen:
 Durch Phase~2 soll die Frage beantwortet werden, ob sich die in der 2D-Umgebung entwickelte Pipeline auf eine physikalisch simulierte, realitätsnah gerenderte 3D-Umgebung übertragen lässt. Das ist gelungen: In Isaac Sim sind zwei Kamera-Agenten entstanden, die allein anhand des Kamerabildes zuverlässig Runden fahren (Tabelle~\ref{tab:agentenvergleich}).
 
 \paragraph{Was die Agenten können.}
-Agent~1 wurde auf einer einzigen Darstellung der Strecke trainiert. Dort fährt er \num{6.4} Runden je Episode mit einer besten Runde von \SI{8.65}{\second} und ist damit nur rund \SI{4}{\percent} langsamer als der Lehrer, der den Zustand der Simulation exakt kennt. Agent~2 wurde auf zwölf Darstellungen mit Bildstörungen trainiert und fährt auf allen zwölf Runden, im Mittel \num{4.5} je Episode. Auf den drei besten Darstellungen fährt er bei \SI{200}{\second} langen Episoden \num{19} bis \num{19.7} Runden ohne einen einzigen Crash. Außerdem ist der Agent in der Lage, auf einer Darstellung, die er im Training nie gesehen hat, zu fahren. Er ist damit langsamer und weniger sicher als Agent~1, dafür aber robust gegen ein verändertes Aussehen der Strecke, an dem Agent~1 vollständig scheitert (Abschnitt~\ref{subsec:agent2_ergebnis}).
+Agent~1 wurde auf einer einzigen Darstellung der Strecke trainiert. Dort fährt er \num{6.4} Runden je Episode mit einer besten Runde von \SI{8.65}{\second} und ist damit nur rund \SI{4}{\percent} langsamer als der Experte, der den Zustand der Simulation exakt kennt. Agent~2 wurde auf zwölf Darstellungen mit Bildstörungen trainiert und fährt auf allen zwölf Runden, im Mittel \num{4.5} je Episode. Auf den drei besten Darstellungen fährt er bei \SI{200}{\second} langen Episoden \num{19} bis \num{19.7} Runden ohne einen einzigen Crash. Außerdem ist der Agent in der Lage, auf einer Darstellung, die er im Training nie gesehen hat, zu fahren. Er ist damit langsamer und weniger sicher als Agent~1, dafür aber robust gegen ein verändertes Aussehen der Strecke, an dem Agent~1 vollständig scheitert (Abschnitt~\ref{subsec:agent2_ergebnis}).
 
 \paragraph{Wo die Grenzen liegen.}
 Eine andere Streckenführung fährt keiner der beiden Agenten. Agent~2 fährt ohne Nachtraining auf keiner der vier neuen Strecken eine Runde, auch nicht auf der um \SI{180}{\degree} gedrehten Originalstrecke in den bekannten Darstellungen (Tabelle~\ref{tab:ohne_nachtraining}). Wird er auf einer neuen Strecke weitertrainiert, fährt er seine erste Runde nur \SIrange{3}{11}{\percent} früher als ein neu gestarteter Agent mit demselben vortrainierten Encoder (Tabelle~\ref{tab:transfer}).

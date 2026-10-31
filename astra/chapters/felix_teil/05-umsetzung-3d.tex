@@ -82,6 +82,7 @@ Die Lackierung des sichtbaren Modells (eine Textur der Karosserie) lag während 
   \label{fig:3d_lackierung}
 \end{figure}
 
+\FloatBarrier % Abbildung bleibt im Abschnitt Lackierung, statt den Text zum Antrieb zu teilen
 \subsubsection{Antrieb und Fahrverhalten}
 \label{subsec:3d_antrieb}
 
@@ -186,9 +187,9 @@ Tabelle~\ref{tab:3d_vergleich2d} stellt die 2D-Umgebung aus Phase~1 und die 3D-U
     Lernverfahren             & \ac{SAC} (Stable-Baselines3 \cite{raffin2021stable}), NatureCNN, Lernrate \num{5e-5}, $\gamma = \num{0.99}$, \num{0.5} Updates je Übergang & übernommen \\
     Erfahrungsspeicher        & jedes Bild einmal abgelegt, Stapel beim Ziehen & übernommen; bei Agent~2 mit \SI{2}{\bit} je Pixel \\
     Parallele Umgebungen      & eine & 4 (Agent~1) bzw.\ 16 (Agent~2) \\
-    Lehrer                    & Lidar-Strahlen & exakter Zustand aus der Simulation \\
+    Experte                    & Lidar-Strahlen & exakter Zustand aus der Simulation \\
     Datenaufzeichnung         & mit injiziertem Rauschen & deterministisch \\
-    Vortraining               & Nachahmen der Lehreraktionen & Agent~1 wie Phase~1; Agent~2 auf die Lage des Fahrzeugs \\
+    Vortraining               & Nachahmen der Expertenaktionen & Agent~1 wie Phase~1; Agent~2 auf die Lage des Fahrzeugs \\
     Encoder zu Beginn des \ac{RL}-Trainings & lernt sofort mit & eingefroren \\
     Darstellung der Strecke   & eine & Agent~2: zwölf Darstellungen und Bildstörungen \\
     \bottomrule
